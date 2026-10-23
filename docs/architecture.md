@@ -2,7 +2,7 @@
 
 [中文](zh-CN/architecture.md) · [README](../README.md)
 
-Workboard is a trusted Paseo plugin with separate client and server entries. The daemon owns task data and automation. Each client renders the selected host's board or grouped list and keeps only its display preferences locally.
+Workboard is a trusted Paseo plugin with separate client and server entries. The daemon owns task data and automation. Each client renders the selected host's board or grouped list, combined with other connected hosts (see [Multiple hosts](#multiple-hosts)), and keeps only its display preferences locally.
 
 ## Modules
 
@@ -66,6 +66,14 @@ The archive page can confirm uncertain or external outcomes as archived, or clea
 
 Native archive may stop agents/terminals and remove a managed worktree. Workboard records archive status but does not guarantee directory cleanup or restoration. Paseo's independent archive-on-merge setting remains under Paseo's control.
 
+## Multiple hosts
+
+Each host's daemon keeps its own Workboard data; no data is copied between daemons. Paseo evaluates the plugin client once per connected host that has the plugin, and each evaluation's `rpc` capability reaches only its own daemon. `client/host-runtimes.ts` publishes every evaluation in a registry on the shared global object under a versioned symbol, learning its `serverId` from its first snapshot. Entries are replaced, never mutated, and every change notifies listeners, so hosts running different releases can share the registry. This relies on all evaluations sharing one JavaScript context; the public SDK documents `useHosts` and `getPaseoClient`, but not plugin RPC to another host.
+
+The surface polls every other registered host's snapshot. `client/federation.ts` merges them under the local host's groups: remote cards join groups with the same ID, conflicts and off-board archive records are kept, and the rest are counted as hidden. Card and project IDs map to their owner. `routeMutation` sends task mutations to the owner, splits a combined reorder into the owner's own column (the merge never breaks a host's order, so the server's full-column check still holds), resets order on every host present in the column, and keeps group and settings changes local. Responses update the owner's cached snapshot and return a re-merged board. A remembered cross-host arrangement only breaks ties between hosts and lives in client storage.
+
+`settings.groupSyncMaster` stores the master's `serverId`; the master stores its own. It defaults to null, so stored data stays at schema version 8. Only the `group-sync` action changes it. A follower refuses group and group-order changes through `settings` and `reorder-groups`. The follower's own client evaluation compares itself with the master every 30 seconds, after a registry change while waiting, and when a surface requests it after a group mutation. If the master still names itself and the layouts differ, it calls `sync-groups` on its own host only. That action requires the host to follow the named master, copies groups and order, clears defaults that no longer resolve, and reuses `saveSettings` validation without the local reorder and default-in-use checks, so groups used by tasks and type changes under drafts are still refused. When the mirror adds a Done/Canceled label and automatic archive is on, it turns archive off and sets `archivePausedByGroupSync` (default false, cleared when archive is re-enabled), since no one on the follower saw the due-task preview. Concurrent clients converge because the mirror is idempotent.
+
 ## Compatibility boundary
 
 The public SDK does not expose every required operation. The compatibility module uses the plugin's existing authenticated IPC session for labels, pins, settings writes, bootstrap and selected history/record queries. It does not create a second login, replace credentials or modify Paseo.
@@ -80,6 +88,6 @@ Client imports use Paseo-provided React, React Native, TanStack Query, Zod and p
 
 Paseo 0.9.1 has no public plugin locale API. `client/paseo-language.ts` reads the Web/Electron app's `@paseo:app-settings` language, with its legacy key as a fallback, without writing host settings. It uses Paseo's system-locale selection rules and translates Chinese or English. While a surface is mounted, storage/focus events and a one-second check observe changes in the same window. Revalidate this private storage contract when upgrading Paseo. Clients without that storage, including native mobile, fall back to English.
 
-View choice defaults to Board, and list collapsed groups start expanded. View choice, separate board/list collapsed groups, board column widths, and filters are stored per host in browser `localStorage`, independently from daemon settings. These client changes add no RPC or data-schema version. Storage failures leave the current view usable. These preferences are not synchronized between clients. Native mobile persistence and touch behavior are outside the verified platform coverage.
+View choice defaults to Board, and list collapsed groups start expanded. View choice, separate board/list collapsed groups, board column widths, and filters are stored per host in browser `localStorage`, independently from daemon settings. These client changes add no RPC or data-schema version. Storage failures leave the current view usable. The all-hosts toggle and the remembered cross-host arrangement are stored the same way under a separate key. These preferences are not synchronized between clients. Native mobile persistence and touch behavior are outside the verified platform coverage.
 
 See [verification](verification.md) for evidence and [contributing](../CONTRIBUTING.md) for changes to these boundaries.

@@ -137,12 +137,16 @@ export const groupOrderSchema = z
 const preferences = {
   autoArchive: z.boolean().default(false),
   archiveMappingNeedsReview: z.boolean().default(false),
+  // A mirror made more labels count as Done/Canceled; archive waits for this host's review.
+  archivePausedByGroupSync: z.boolean().default(false),
   archiveAfterDays: z.number().int().min(1).max(365).default(30),
   defaultDraftGroup: stageSchema.nullable().default(null),
   defaultStartGroup: stageSchema.nullable().default(null),
   defaultStartWorkGroup: stageSchema.nullable().default(null),
   pinInProgressWorkspaces: z.boolean().default(true),
   exclusiveStatusLabels: z.boolean().default(false),
+  // The serverId whose groups this host mirrors; its own serverId marks the master.
+  groupSyncMaster: z.string().min(1).nullable().default(null),
 };
 export const settingsSchema = z.object({
   ...preferences,
@@ -166,6 +170,23 @@ export function orderedGroups(
     if (remaining.has(group.id)) ordered.push(group);
   return ordered;
 }
+export type GroupSyncRole = "master" | "follower" | "independent";
+export const groupSyncRole = (
+  settings: Pick<Settings, "groupSyncMaster">,
+  serverId: string,
+): GroupSyncRole =>
+  settings.groupSyncMaster === null
+    ? "independent"
+    : settings.groupSyncMaster === serverId
+      ? "master"
+      : "follower";
+/** Group identity, definition and display order: everything a follower mirrors. */
+export const sameGroupLayout = (
+  left: Pick<Settings, "groups" | "groupOrder">,
+  right: Pick<Settings, "groups" | "groupOrder">,
+): boolean =>
+  JSON.stringify([left.groups, left.groupOrder]) ===
+  JSON.stringify([right.groups, right.groupOrder]);
 export const defaultGroup = (
   groups: readonly Group[],
   configured: Stage | null = null,

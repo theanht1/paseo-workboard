@@ -217,6 +217,11 @@ Cafe catalog promotion remains separate from npm publication.
   SDK versions, or all remote MR/PR state transitions.
 - Unit and fixture integration coverage do not replace an end-to-end test with
   a real external model or forge service.
+- The combined multi-host board and group mirroring are covered by unit tests
+  with simulated per-host plugin runtimes. They have not been exercised with two
+  real daemons connected to one Paseo client. The per-host plugin runtime model
+  they rely on was read from the Paseo 0.11.2 web client bundle, not from a
+  public SDK contract.
 
 Before changing the compatibility bridge, repeat the supported-version checks
 and add evidence for the affected host behavior. For package validation, run

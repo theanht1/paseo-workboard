@@ -9,6 +9,7 @@ import {
   defaultWorkspaceGroup,
   defaultStartWorkGroup,
   groupKind,
+  groupSyncRole,
   isArchiveDue,
   isDraftGroup,
   isTerminalGroup,
@@ -17,6 +18,7 @@ import {
   newestConflictStage,
   orderedGroups,
   resolveStage,
+  sameGroupLayout,
   settingsSchema,
   statusLabels,
   STAGE_COLORS,
@@ -24,6 +26,7 @@ import {
   type Card,
   type Data,
   type ConversationAgent,
+  type Group,
   type ConversationDisplay,
   type ConversationGate,
   type ConversationReason,
@@ -750,6 +753,62 @@ export class Workboard {
         if (!active.has(id)) delete data.autoPins[id];
     });
   }
+  private following(settings: Settings = this.store.current.settings) {
+    return groupSyncRole(settings, this.host.identity.serverId) === "follower";
+  }
+  /**
+   * A follower mirrors its master's groups and display order exactly. Defaults that would no
+   * longer resolve fall back to the first group of their type instead of blocking the mirror.
+   */
+  private async syncGroups(
+    input: Extract<Mutation, { action: "sync-groups" }>,
+  ): Promise<boolean> {
+    const previous = this.store.current.settings;
+    if (!this.following(previous) || previous.groupSyncMaster !== input.master)
+      throw new Error("group-sync-not-following");
+    if (sameGroupLayout(previous, input)) return false;
+    const groups = input.groups;
+    const terminalLabels = (list: readonly Group[]) =>
+      new Set(
+        list
+          .filter((group) => isTerminalGroup(group.id, list))
+          .map((group) => labelKey(group.label)),
+      );
+    const before = terminalLabels(previous.groups);
+    // A local edit previews newly due workspaces; a mirror cannot, so it pauses archive.
+    const pause =
+      previous.autoArchive &&
+      [...terminalLabels(groups)].some((label) => !before.has(label));
+    const kept = (id: Stage | null, valid: (id: Stage) => boolean) =>
+      id !== null && groups.some((group) => group.id === id) && valid(id)
+        ? id
+        : null;
+    await this.saveSettings(
+      {
+        ...previous,
+        groups,
+        groupOrder: input.groupOrder,
+        autoArchive: previous.autoArchive && !pause,
+        archivePausedByGroupSync: previous.archivePausedByGroupSync || pause,
+        defaultDraftGroup: kept(
+          previous.defaultDraftGroup,
+          (id) => groupKind(id, groups) === "todo",
+        ),
+        defaultStartGroup: kept(
+          previous.defaultStartGroup,
+          (id) => !isTerminalGroup(id, groups),
+        ),
+        defaultStartWorkGroup: kept(
+          previous.defaultStartWorkGroup,
+          (id) => groupKind(id, groups) === "in-progress",
+        ),
+      },
+      this.store.current.revision,
+      previous,
+      true,
+    );
+    return true;
+  }
   /**
    * Persists settings and reports whether groups changed. Group edits re-derive every task's
    * stage and label mapping, so the caller must reconcile; a preference-only save (a toggle)
@@ -759,6 +818,7 @@ export class Workboard {
     settings: Settings,
     revision: number,
     expectedSettings?: Settings,
+    mirror = false,
   ): Promise<boolean> {
     const previous = this.store.current;
     const unchanged = (data: typeof previous) =>
@@ -768,32 +828,45 @@ export class Workboard {
     if (!unchanged(previous))
       throw new Error("Settings changed; refresh before saving");
     const next = settingsSchema.parse(settings);
+    // Only the group-sync action designates a master.
+    next.groupSyncMaster = previous.settings.groupSyncMaster;
+    if (
+      !mirror &&
+      this.following(previous.settings) &&
+      !sameGroupLayout(next, previous.settings)
+    )
+      throw new Error("group-sync-follower");
     if (
       next.defaultStartGroup &&
       isTerminalGroup(next.defaultStartGroup, next.groups)
     )
       throw new Error("group-default-terminal");
-    if (next.autoArchive) next.archiveMappingNeedsReview = false;
-    const previousIds = previous.settings.groups.map((group) => group.id);
-    const nextIds = next.groups.map((group) => group.id);
-    const retained = nextIds.filter((id) => previousIds.includes(id));
-    if (
-      !sameOrder(
-        retained,
-        previousIds.filter((id) => nextIds.includes(id)),
+    if (next.autoArchive) {
+      next.archiveMappingNeedsReview = false;
+      next.archivePausedByGroupSync = false;
+    }
+    if (!mirror) {
+      const previousIds = previous.settings.groups.map((group) => group.id);
+      const nextIds = next.groups.map((group) => group.id);
+      const retained = nextIds.filter((id) => previousIds.includes(id));
+      if (
+        !sameOrder(
+          retained,
+          previousIds.filter((id) => nextIds.includes(id)),
+        )
       )
-    )
-      throw new Error("Groups cannot be reordered here");
-    if (nextIds.slice(retained.length).some((id) => previousIds.includes(id)))
-      throw new Error("Groups cannot be reordered here");
-    if (!sameOrder(next.groupOrder, previous.settings.groupOrder))
-      throw new Error("Group order changed; refresh before saving");
-    next.groupOrder = previous.settings.groupOrder.length
-      ? orderedGroups({
-          groups: next.groups,
-          groupOrder: previous.settings.groupOrder,
-        }).map((group) => group.id)
-      : [];
+        throw new Error("Groups cannot be reordered here");
+      if (nextIds.slice(retained.length).some((id) => previousIds.includes(id)))
+        throw new Error("Groups cannot be reordered here");
+      if (!sameOrder(next.groupOrder, previous.settings.groupOrder))
+        throw new Error("Group order changed; refresh before saving");
+      next.groupOrder = previous.settings.groupOrder.length
+        ? orderedGroups({
+            groups: next.groups,
+            groupOrder: previous.settings.groupOrder,
+          }).map((group) => group.id)
+        : [];
+    }
     const removed = previous.settings.groups.filter(
       (group) => !next.groups.some((candidate) => candidate.id === group.id),
     );
@@ -846,14 +919,15 @@ export class Workboard {
         )
           throw new Error("group-tasks-in-use");
         if (
-          group.id ===
+          !mirror &&
+          (group.id ===
             defaultGroup(previous.settings.groups, next.defaultDraftGroup) ||
-          group.id ===
-            defaultWorkspaceGroup(
-              previous.settings.groups,
-              next.defaultStartGroup,
-            ) ||
-          group.id === next.defaultStartWorkGroup
+            group.id ===
+              defaultWorkspaceGroup(
+                previous.settings.groups,
+                next.defaultStartGroup,
+              ) ||
+            group.id === next.defaultStartWorkGroup)
         )
           throw new Error("group-default-in-use");
       }
@@ -979,6 +1053,15 @@ export class Workboard {
                 ?.name ?? "";
             data.tasks.push(task);
           });
+        } else if (input.action === "group-sync") {
+          await this.store.update((data) => {
+            data.settings.groupSyncMaster = input.master;
+          });
+        } else if (input.action === "sync-groups") {
+          if (await this.syncGroups(input)) {
+            await this.reconcile();
+            this.changed();
+          }
         } else if (input.action === "settings") {
           const groupsChanged = await this.saveSettings(
             input.settings,
@@ -1000,6 +1083,7 @@ export class Workboard {
             else data.cardOrderByStage[input.stage] = input.cardOrder;
           });
         } else if (input.action === "reorder-groups") {
+          if (this.following()) throw new Error("group-sync-follower");
           const current = orderedGroups(this.store.current.settings).map(
             (group) => group.id,
           );

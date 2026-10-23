@@ -16,6 +16,7 @@ Workboard 将活跃 workspace 汇集到同一个看板，每个 workspace 对应
 - **集中查看工作动态。** 显示 Agent 活动、对话日期，以及 Paseo 提供的 PR/MR、CI 和评审信息；可按项目、活动、PR/MR 条件、待关注状态及最后对话日期筛选。
 - **自定义工作流程。** 配置分组和默认分组，通过拖动或键盘调整任务与分组顺序，还可将进行中的 workspace 置顶到侧边栏。
 - **可选的自动归档。** 已完成或已废弃的 workspace 在最后一次已验证对话超过配置期限后，经活动与 Git 安全检查再归档。默认关闭。
+- **多个 host 共用一个看板。** 合并所有已连接且运行 Workboard 的 host，修改写回任务所属 host；可选择一台分组主机，将其分组镜像到其它 host。
 
 界面跟随 Paseo 桌面端/Web 的语言与主题，文案和日期支持中文与英语。
 
@@ -92,6 +93,7 @@ mise exec -- npm run format:check
 - 部分标签与 workspace 操作通过 Paseo 内部桥接完成，复用宿主会话并校验响应。manifest 的最低版本不代表兼容所有后续版本，升级前请查看[验证记录](docs/zh-CN/verification.md)。
 - 自动归档可能停止 Agent 与 terminal，并可能移除托管 worktree。缺少对话证据或状态不安全时会延期；Workboard 无法恢复原生归档或被移除的 worktree。
 - 标签、归档状态和侧边栏置顶可在 Workboard 外变化。宿主未提供全部原子操作，结果不确定时需要人工核实，不会进行破坏性重试。
+- 多 host 看板与分组镜像在 Paseo 客户端中运行，只在连接了这些 host 的客户端打开时生效。它依赖 Paseo 为每个已连接 host 加载一份插件客户端并共享 JavaScript 上下文，这不是公开 SDK 约定；见[架构](docs/zh-CN/architecture.md#多-host)。
 - 列表视图已有 Chrome 检查记录。Electron、原生移动端、长时间边缘自动滚动，以及拖动过程中的 `Escape` 或失焦仍未验收，完整范围见验证记录。
 
 ## 许可证与致谢

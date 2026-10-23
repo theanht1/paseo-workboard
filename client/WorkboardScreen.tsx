@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
@@ -21,6 +21,7 @@ import {
 import {
   defaultWorkspaceGroup,
   defaultStartWorkGroup,
+  groupSyncRole,
   isDraftGroup,
   isTerminalGroup,
   orderedGroups,
@@ -66,6 +67,20 @@ import { QuickCreate } from "./QuickCreate";
 import { HintButton, HintProvider } from "./Hint";
 import { usePaseoLanguage } from "./paseo-language";
 import { ConfirmationModal } from "./ConfirmationModal";
+import { mergeBoards, routeMutation, type HostBoard } from "./federation";
+import {
+  hostLabel,
+  useHostRuntimes,
+  useHostSummaries,
+  useRemoteBoards,
+} from "./federation-hooks";
+import { requestGroupSync } from "./host-runtimes";
+import {
+  loadHostPreferences,
+  saveHostPreferences,
+  type HostPreferences,
+} from "./host-preferences";
+import { HostSettings, type HostStatus } from "./HostSettings";
 
 type Page = "board" | "archive" | "settings";
 type DraftForm = {
@@ -73,7 +88,25 @@ type DraftForm = {
   title: string;
   description: string;
   projectId: string | null;
+  /** The host a new draft is created on. */
+  serverId?: string;
 } | null;
+type HostOption = { serverId: string; label: string; board: Board };
+const GROUP_ACTIONS = new Set<Mutation["action"]>([
+  "settings",
+  "reorder-groups",
+  "group-sync",
+]);
+/** Keep a list's identity while its items are unchanged, for memoized merging. */
+function useStableList<T>(list: T[]): T[] {
+  const stable = useRef(list);
+  if (
+    stable.current.length !== list.length ||
+    stable.current.some((item, index) => item !== list[index])
+  )
+    stable.current = list;
+  return stable.current;
+}
 type StartForm = { card: Card; stage?: Stage } | null;
 type MoveUndo = {
   group: Pick<Group, "id" | "kind" | "label">;
@@ -158,6 +191,60 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
   const serverBoard = boardQuery.data;
   const language = usePaseoLanguage();
   const t = strings(language);
+  const runtimes = useHostRuntimes();
+  const hostSummaries = useHostSummaries();
+  const remoteBoards = useRemoteBoards(
+    serverBoard?.serverId,
+    runtimes,
+    hostSummaries,
+  );
+  const [hostPreferences, setHostPreferences] = useState(() =>
+    loadHostPreferences(props.host.id),
+  );
+  const hostPreferencesRef = useRef(hostPreferences);
+  const updateHostPreferences = (patch: Partial<HostPreferences>) => {
+    const next = { ...hostPreferencesRef.current, ...patch };
+    hostPreferencesRef.current = next;
+    setHostPreferences(next);
+    if (
+      !saveHostPreferences(props.host.id, next) &&
+      !viewStorageWarned.current
+    ) {
+      viewStorageWarned.current = true;
+      toast.show(t.viewSaveFailed, { variant: "warning" });
+    }
+  };
+  // Query data keeps its identity between unchanged polls; merge only when it changes.
+  const remoteData = useStableList(
+    hostPreferences.allHosts
+      ? remoteBoards.flatMap((remote) => (remote.board ? [remote.board] : []))
+      : [],
+  );
+  const shownRemotes = useMemo(
+    () =>
+      remoteData.map(
+        (board): HostBoard => ({
+          serverId: board.serverId,
+          label: hostLabel(hostSummaries, board.serverId),
+          board,
+        }),
+      ),
+    [remoteData, hostSummaries],
+  );
+  const federation = useMemo(
+    () =>
+      serverBoard &&
+      mergeBoards(
+        {
+          serverId: serverBoard.serverId,
+          label: hostLabel(hostSummaries, serverBoard.serverId),
+          board: serverBoard,
+        },
+        shownRemotes,
+        hostPreferences.crossHostOrder,
+      ),
+    [serverBoard, shownRemotes, hostSummaries, hostPreferences.crossHostOrder],
+  );
   const updateViewPreferences = (patch: Partial<ViewPreferences>) => {
     const next = { ...viewPreferencesRef.current, ...patch };
     viewPreferencesRef.current = next;
@@ -171,8 +258,16 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
     }
   };
   const mutationPending = useRef(new Set<string>());
-  const liveBoard = useRef(serverBoard);
-  liveBoard.current = serverBoard;
+  const liveBoard = useRef(federation?.board);
+  liveBoard.current = federation?.board;
+  const liveServer = useRef(serverBoard);
+  liveServer.current = serverBoard;
+  const liveFederation = useRef(federation);
+  liveFederation.current = federation;
+  const liveRemotes = useRef(remoteBoards);
+  liveRemotes.current = remoteBoards;
+  const liveShown = useRef(shownRemotes);
+  liveShown.current = shownRemotes;
   const liveUndos = useRef(moveUndos);
   liveUndos.current = moveUndos;
   const filterValues = useRef(filters);
@@ -223,7 +318,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       ),
     );
     return () => clearTimeout(timer);
-  }, [serverBoard, moveUndos]);
+  }, [federation?.board, moveUndos]);
   const writeEligible = useRef(false);
   const updateFilters = useCallback(
     (patch: Partial<BoardFilters>) => {
@@ -239,15 +334,27 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
     },
     [persistFilters],
   );
+  // Remote projects are filterable too; wait for every host before dropping a saved filter.
+  const remotesLoading = remoteBoards.some(
+    (remote) => !remote.board && !remote.failed,
+  );
+  const knownProjects = federation?.board.projects;
   useEffect(() => {
     if (
       serverBoard?.connected &&
+      !remotesLoading &&
       projectId !== "all" &&
       projectId !== "none" &&
-      !serverBoard.projects.some((project) => project.id === projectId)
+      !knownProjects?.some((project) => project.id === projectId)
     )
       updateFilters({ projectId: "all" });
-  }, [projectId, serverBoard?.connected, serverBoard?.projects, updateFilters]);
+  }, [
+    projectId,
+    serverBoard?.connected,
+    remotesLoading,
+    knownProjects,
+    updateFilters,
+  ]);
   writeEligible.current = !!serverBoard?.connected && !boardQuery.isError;
   const mutate = useCallback(
     async (
@@ -255,6 +362,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       pendingMutationId = "taskId" in mutation
         ? `${mutation.action}:${mutation.taskId}`
         : mutation.action,
+      target?: string,
     ) => {
       if (mutationPending.current.has(pendingMutationId)) {
         toast.error(t.mutationPending);
@@ -267,12 +375,57 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       mutationPending.current.add(pendingMutationId);
       setPendingMutationIds(new Set(mutationPending.current));
       try {
-        const next = await callMutation(mutation);
-        await cache.cancelQueries({ queryKey: ["workboard", props.host.id] });
-        cache.setQueryData<Board>(["workboard", props.host.id], (previous) =>
-          previous && previous.revision > next.revision ? previous : next,
+        const local = liveServer.current!;
+        const routes = target
+          ? [{ serverId: target, mutation }]
+          : routeMutation(
+              mutation,
+              liveFederation.current?.owners ?? new Map(),
+              local.serverId,
+            );
+        const settled = await Promise.allSettled(
+          routes.map(async (route) => {
+            const remote = liveRemotes.current.find(
+              (item) => item.runtime.serverId === route.serverId,
+            );
+            if (route.serverId !== local.serverId && !remote)
+              throw new Error("host-unavailable");
+            const key =
+              route.serverId === local.serverId
+                ? props.host.id
+                : route.serverId;
+            const next = remote
+              ? await remote.runtime.rpc(mutateRpc, route.mutation)
+              : await callMutation(route.mutation);
+            await cache.cancelQueries({ queryKey: ["workboard", key] });
+            cache.setQueryData<Board>(["workboard", key], (previous) =>
+              previous && previous.revision > next.revision ? previous : next,
+            );
+            return next;
+          }),
         );
-        return next;
+        const failed = settled.find((result) => result.status === "rejected");
+        if (failed) throw failed.reason;
+        const boards = new Map(
+          settled.map((result) => {
+            const next = (result as PromiseFulfilledResult<Board>).value;
+            return [next.serverId, next];
+          }),
+        );
+        if (GROUP_ACTIONS.has(mutation.action)) requestGroupSync();
+        const merged = mergeBoards(
+          {
+            serverId: local.serverId,
+            label: "",
+            board: boards.get(local.serverId) ?? local,
+          },
+          liveShown.current.map((remote) => ({
+            ...remote,
+            board: boards.get(remote.serverId) ?? remote.board,
+          })),
+          hostPreferencesRef.current.crossHostOrder,
+        );
+        return merged.board;
       } catch (error) {
         toast.error(mutationErrorText(error, t));
         return undefined;
@@ -285,7 +438,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
   );
   if (boardQuery.isPending)
     return <Centered theme={props.theme} text={t.loading} />;
-  if (!serverBoard)
+  if (!serverBoard || !federation)
     return (
       <Centered
         theme={props.theme}
@@ -296,14 +449,102 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
     );
   const board = withOptimisticStages(
     {
-      ...serverBoard,
+      ...federation.board,
       cardOrderByStage: {
-        ...serverBoard.cardOrderByStage,
+        ...federation.board.cardOrderByStage,
         ...optimisticCardOrders,
       },
     },
     optimisticStages,
   );
+  const localId = serverBoard.serverId;
+  const multiHost = shownRemotes.length > 0;
+  const labelOf = (serverId: string) => hostLabel(hostSummaries, serverId);
+  const ownerOf = (card: Card) => federation.owners.get(card.id) ?? localId;
+  const boardOf = (serverId: string) =>
+    (serverId === localId
+      ? undefined
+      : remoteBoards.find((remote) => remote.runtime.serverId === serverId)
+          ?.board) ?? serverBoard;
+  const hostOptions: HostOption[] = [
+    { serverId: localId, label: labelOf(localId), board: serverBoard },
+    ...shownRemotes,
+  ];
+  const syncRole = groupSyncRole(serverBoard.settings, localId);
+  const groupsLockedBy =
+    syncRole === "follower"
+      ? labelOf(serverBoard.settings.groupSyncMaster!)
+      : null;
+  const groupsLocked = () => {
+    if (!groupsLockedBy) return false;
+    toast.show(t.groupsFollowing.replace("{master}", groupsLockedBy), {
+      variant: "warning",
+    });
+    return true;
+  };
+  // Deleting a master's group also reaches the hosts that mirror it.
+  const groupScope = new Set([
+    localId,
+    ...(syncRole === "master"
+      ? remoteBoards
+          .filter(
+            (remote) => remote.board?.settings.groupSyncMaster === localId,
+          )
+          .map((remote) => remote.runtime.serverId)
+      : []),
+  ]);
+  const projectHost =
+    projectId === "all" || projectId === "none"
+      ? localId
+      : (federation.projectOwners.get(projectId) ?? localId);
+  const hostStatuses: HostStatus[] = [
+    ...new Set([
+      localId,
+      ...hostSummaries.map((host) => host.serverId),
+      ...runtimes.flatMap((runtime) =>
+        runtime.serverId ? [runtime.serverId] : [],
+      ),
+    ]),
+  ].map((serverId) => {
+    const summary = hostSummaries.find((host) => host.serverId === serverId);
+    const runtime = runtimes.find((item) => item.serverId === serverId);
+    return {
+      serverId,
+      label: labelOf(serverId),
+      local: serverId === localId,
+      online:
+        serverId === localId ||
+        (summary ? summary.status === "online" : !!runtime),
+      settings:
+        serverId === localId
+          ? serverBoard.settings
+          : remoteBoards.find((remote) => remote.runtime.serverId === serverId)
+              ?.board?.settings,
+      sync: runtime?.sync,
+    };
+  });
+  const setGroupMaster = async (master: string | null) => {
+    const targets = hostStatuses.filter((host) => host.online && host.settings);
+    const results = await Promise.all(
+      targets.map((host) =>
+        mutate(
+          { action: "group-sync", master },
+          `group-sync:${host.serverId}`,
+          host.serverId,
+        ),
+      ),
+    );
+    const failed = targets.filter((_, index) => !results[index]);
+    if (failed.length)
+      toast.show(
+        t.groupSyncPartial.replace(
+          "{hosts}",
+          failed.map((host) => host.label).join(", "),
+        ),
+        { variant: "warning" },
+      );
+    return !failed.length;
+  };
   const cards = visibleCards(board, projectId, search, attentionOnly, filters);
   const filterCount = activeFilterCount(filters);
   const hasActiveFilter = filterCount > 0;
@@ -332,7 +573,10 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
   if (page === "settings")
     return (
       <SettingsPage
-        board={board}
+        board={serverBoard}
+        hosts={hostStatuses}
+        groupsLockedBy={groupsLockedBy}
+        onSetGroupMaster={setGroupMaster}
         t={t}
         theme={props.theme}
         disabled={writesDisabled}
@@ -456,10 +700,21 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       delete copy[input.stage];
       return copy;
     });
-    if (!next) void boardQuery.refetch();
+    if (next && multiHost) {
+      const crossHostOrder = { ...hostPreferencesRef.current.crossHostOrder };
+      if (input.action === "reorder-cards")
+        crossHostOrder[input.stage] = input.cardOrder;
+      else delete crossHostOrder[input.stage];
+      updateHostPreferences({ crossHostOrder });
+    }
+    if (!next) {
+      void boardQuery.refetch();
+      for (const remote of remoteBoards) remote.refetch();
+    }
     return !!next;
   };
   const editGroup = (group: Group) =>
+    !groupsLocked() &&
     setEditingGroup({
       group,
       settings: board.settings,
@@ -467,7 +722,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
     });
   const deleteReason = (group: Group) => {
     const reason = groupDeleteReason(
-      board.cards,
+      board.cards.filter((card) => groupScope.has(ownerOf(card))),
       board.settings.groups,
       group,
       board.settings,
@@ -479,6 +734,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       title: "",
       description: "",
       projectId: projectId === "all" || projectId === "none" ? null : projectId,
+      serverId: projectHost,
     });
   const clearFilters = () => updateFilters(DEFAULT_FILTERS);
   const notifyTaskSaved = (next: Board, editedId?: string, quick = false) => {
@@ -634,6 +890,52 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
               </Pressable>
             ))}
           </View>
+          {remoteBoards.length > 0 && (
+            <HintButton
+              hint={t.allHostsHint}
+              testID="workboard-all-hosts"
+              accessibilityRole="button"
+              accessibilityLabel={t.allHosts}
+              {...toggleButtonState(hostPreferences.allHosts)}
+              onPress={() =>
+                updateHostPreferences({ allHosts: !hostPreferences.allHosts })
+              }
+              style={({ pressed }) => [
+                styles.toolbarButton,
+                {
+                  backgroundColor: hostPreferences.allHosts
+                    ? props.theme.colors.accent
+                    : pressed
+                      ? props.theme.colors.surface2
+                      : "transparent",
+                },
+              ]}
+            >
+              <Icon
+                name="Server"
+                size={16}
+                color={
+                  hostPreferences.allHosts
+                    ? props.theme.colors.accentForeground
+                    : props.theme.colors.foreground
+                }
+              />
+              {!props.layout.compact && (
+                <Text
+                  style={[
+                    styles.controlText,
+                    {
+                      color: hostPreferences.allHosts
+                        ? props.theme.colors.accentForeground
+                        : props.theme.colors.foreground,
+                    },
+                  ]}
+                >
+                  {t.allHosts}
+                </Text>
+              )}
+            </HintButton>
+          )}
           <HintButton
             hint={t.attention}
             accessibilityRole="button"
@@ -893,6 +1195,33 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
           {bootErrorText(board.error, t)}
         </Text>
       )}
+      {hostPreferences.allHosts &&
+        remoteBoards
+          .filter(
+            (remote) => remote.failed || remote.board?.connected === false,
+          )
+          .map((remote) => (
+            <Text
+              key={`unavailable:${remote.runtime.serverId}`}
+              style={[
+                styles.notice,
+                { color: props.theme.colors.statusWarning },
+              ]}
+            >
+              {t.hostUnavailable.replace("{host}", remote.label)}
+            </Text>
+          ))}
+      {federation.hidden.map((host) => (
+        <Text
+          key={`hidden:${host.serverId}`}
+          testID="workboard-hidden-remote"
+          style={[styles.notice, { color: props.theme.colors.foregroundMuted }]}
+        >
+          {t.hiddenRemoteTasks
+            .replace("{count}", String(host.count))
+            .replace("{host}", host.label)}
+        </Text>
+      ))}
       {conflicts.length > 0 && (
         <ConflictNotice
           cards={conflicts}
@@ -983,6 +1312,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
                         : projectId,
                   },
                   `create:${group.id}`,
+                  projectHost,
                 );
                 setQuickDrafts((current) => ({
                   ...current,
@@ -1013,6 +1343,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
         theme={props.theme}
         onStage={setStage}
         onReorder={async (groupOrder, expectedGroupOrder) => {
+          if (groupsLocked()) return false;
           if (mutationPending.current.has("reorder-groups")) {
             toast.error(t.mutationPending);
             return false;
@@ -1032,6 +1363,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
         onAdd={() => editGroup(newGroup(board.settings.groups))}
         deleteReason={deleteReason}
         onDelete={async (group) => {
+          if (groupsLocked()) return false;
           const reason = deleteReason(group);
           if (reason) {
             toast.show(reason, { variant: "warning" });
@@ -1054,6 +1386,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
             presentation={viewPreferences.mode === "list" ? "row" : "card"}
             card={card}
             board={board}
+            host={multiHost ? labelOf(ownerOf(card)) : undefined}
             t={t}
             theme={props.theme}
             disabled={writesDisabled}
@@ -1074,7 +1407,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
               if (card.workspaceId)
                 props.navigation.openWorkspace({
                   workspaceId: card.workspaceId,
-                  serverId: board.serverId,
+                  serverId: ownerOf(card),
                 });
             }}
             onEdit={() =>
@@ -1096,7 +1429,10 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       {editingGroup && (
         <GroupEditor
           key={editingGroup.group.id}
-          board={board}
+          board={{
+            ...board,
+            cards: board.cards.filter((card) => groupScope.has(ownerOf(card))),
+          }}
           group={editingGroup.group}
           groups={editingGroup.settings.groups}
           disabled={writesDisabled || groupsPending}
@@ -1121,7 +1457,17 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
         disabled={writesDisabled || draftPending}
         pending={draftPending}
         form={draft}
-        board={board}
+        hosts={
+          draft?.task
+            ? [
+                {
+                  serverId: ownerOf(draft.task),
+                  label: labelOf(ownerOf(draft.task)),
+                  board: boardOf(ownerOf(draft.task)),
+                },
+              ]
+            : hostOptions
+        }
         t={t}
         theme={props.theme}
         onClose={() => setDraft(null)}
@@ -1136,12 +1482,16 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
                   description: form.description,
                   projectId: form.projectId,
                 })
-              : mutate({
-                  action: "create",
-                  title: form.title,
-                  description: form.description,
-                  projectId: form.projectId,
-                })
+              : mutate(
+                  {
+                    action: "create",
+                    title: form.title,
+                    description: form.description,
+                    projectId: form.projectId,
+                  },
+                  undefined,
+                  form.serverId,
+                )
           ).then((next) => {
             if (!next) return;
             notifyTaskSaved(next, form.task?.id);
@@ -1154,7 +1504,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
         pending={startPending}
         stage={starting?.stage}
         card={starting?.card ?? null}
-        board={board}
+        board={starting ? boardOf(ownerOf(starting.card)) : serverBoard}
         t={t}
         theme={props.theme}
         onClose={() => setStarting(null)}
@@ -1174,7 +1524,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
             if (workspaceId)
               props.navigation?.openWorkspace({
                 workspaceId,
-                serverId: next.serverId,
+                serverId: ownerOf(starting!.card),
               });
             setStarting(null);
           })
@@ -1502,7 +1852,7 @@ function TaskModal({
   disabled,
   pending,
   form,
-  board,
+  hosts,
   t,
   theme,
   onClose,
@@ -1511,7 +1861,8 @@ function TaskModal({
   disabled: boolean;
   pending: boolean;
   form: DraftForm;
-  board: Board;
+  /** The first host is the default; a new draft may choose another. */
+  hosts: HostOption[];
   t: ReturnType<typeof strings>;
   theme: PluginSurfaceProps["theme"];
   onClose(): void;
@@ -1520,14 +1871,18 @@ function TaskModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [serverId, setServerId] = useState<string | undefined>();
   useEffect(() => {
     if (form) {
       setTitle(form.title);
       setDescription(form.description);
       setProjectId(form.projectId);
+      setServerId(form.serverId);
     }
   }, [form]);
   if (!form) return null;
+  const host = hosts.find((option) => option.serverId === serverId) ?? hosts[0];
+  const board = host.board;
   const linked = form.task?.workspaceId !== null && form.task !== undefined;
   const saveDisabled = disabled || pending || (!linked && !title.trim());
   return (
@@ -1570,6 +1925,40 @@ function TaskModal({
             },
           ]}
         />
+        {!form.task && hosts.length > 1 && (
+          <ScrollView
+            horizontal
+            accessibilityLabel={t.hostField}
+            style={styles.tabScroll}
+            contentContainerStyle={styles.projectChoices}
+          >
+            {hosts.map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t.hostField}: ${option.label}`}
+                {...toggleButtonState(option === host)}
+                key={option.serverId}
+                disabled={disabled}
+                onPress={() => {
+                  if (option === host) return;
+                  setServerId(option.serverId);
+                  setProjectId(null);
+                }}
+                style={[
+                  styles.chip,
+                  disabled && styles.disabledControl,
+                  option === host && {
+                    backgroundColor: theme.colors.surface2,
+                  },
+                ]}
+              >
+                <Text style={{ color: theme.colors.foreground }}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
         <ScrollView
           horizontal
           style={styles.tabScroll}
@@ -1636,6 +2025,7 @@ function TaskModal({
                 title: linked ? form.task!.title : title.trim(),
                 description,
                 projectId,
+                serverId: host.serverId,
               })
             }
           >
@@ -2278,6 +2668,9 @@ export function ArchivePage({
 }
 export function SettingsPage({
   board,
+  hosts = [],
+  groupsLockedBy = null,
+  onSetGroupMaster,
   t,
   theme,
   disabled,
@@ -2287,6 +2680,10 @@ export function SettingsPage({
   onBack,
 }: {
   board: Board;
+  hosts?: readonly HostStatus[];
+  /** The master's label while this host mirrors its groups. */
+  groupsLockedBy?: string | null;
+  onSetGroupMaster?(master: string | null): Promise<boolean>;
   t: ReturnType<typeof strings>;
   theme: PluginSurfaceProps["theme"];
   disabled: boolean;
@@ -2384,6 +2781,9 @@ export function SettingsPage({
                   ),
                   settings.archiveMappingNeedsReview
                     ? t.autoArchiveMigrationPaused
+                    : "",
+                  settings.archivePausedByGroupSync
+                    ? t.autoArchiveGroupSyncPaused
                     : "",
                 ]
                   .filter(Boolean)
@@ -2529,13 +2929,38 @@ export function SettingsPage({
               />
             </SettingsCard>
           </SettingsSection>
+          {onSetGroupMaster &&
+            (hosts.length > 1 || settings.groupSyncMaster !== null) && (
+              <HostSettings
+                hosts={hosts}
+                master={settings.groupSyncMaster}
+                disabled={
+                  disabled ||
+                  [...(pendingMutationIds ?? [])].some((id) =>
+                    id.startsWith("group-sync:"),
+                  )
+                }
+                t={t}
+                theme={theme}
+                errorText={(code) => mutationErrorText(new Error(code), t)}
+                onSetMaster={onSetGroupMaster}
+              />
+            )}
+          {groupsLockedBy && (
+            <Text
+              testID="workboard-groups-following"
+              style={[styles.hintText, { color: theme.colors.statusWarning }]}
+            >
+              {t.groupsFollowing.replace("{master}", groupsLockedBy)}
+            </Text>
+          )}
           <GroupSettings
             board={{ ...board, settings }}
             groups={groups}
             onChange={async (next) =>
               !!(await persist({ ...settings, groups: next }))
             }
-            disabled={disabled}
+            disabled={disabled || !!groupsLockedBy}
             saving={saving}
             t={t}
             theme={theme}

@@ -4,6 +4,11 @@
 
 All notable changes are documented here.
 
+## Unreleased
+
+- Combine every connected host running Workboard on one board. Cards name their host, every change goes to the host that owns the task, new drafts can target any host, and an **All hosts** toolbar toggle limits the board to this host.
+- Add a group master in **Settings → Hosts**: other hosts mirror its groups and order while Paseo is open, lock local group edits, refuse mirrors that would orphan their tasks, pause their automatic archive when a mirror makes more labels terminal, and report their sync state. Stored data stays at schema version 8.
+
 ## 0.3.2 — 2026-10-23
 
 - Add a dedicated Workboard icon and packaged English/Chinese plugin overviews for the Paseo directory.

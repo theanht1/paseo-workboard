@@ -16,6 +16,7 @@ Workboard brings active workspaces into one board, with one task per workspace. 
 - **Activity at a glance.** See Agent activity, conversation dates, and PR/MR, CI, and review information supplied by Paseo. Filter by project, activity, PR/MR condition, attention, or last conversation date.
 - **A configurable workflow.** Customize groups and their defaults, reorder tasks and groups by dragging or keyboard controls, and optionally pin in-progress workspaces in the sidebar.
 - **Optional automatic archiving.** Archive eligible completed or canceled workspaces after a configurable delay from their last verified conversation, with activity and Git safety checks. Disabled by default.
+- **Multiple hosts on one board.** Combine every connected host running Workboard, writing each change to the host that owns the task. Optionally mirror one master host's groups to the others.
 
 The interface follows Paseo's desktop/Web language and theme, with English and Chinese text and dates.
 
@@ -92,6 +93,7 @@ Use the [isolated integration fixture](tests/integration/README.md) for host-lev
 - Some label and workspace operations use an internal Paseo bridge that reuses the host session and validates responses. The manifest minimum does not guarantee compatibility with every later Paseo release; consult [verification](docs/verification.md) before upgrading.
 - Automatic archiving can stop Agents and terminals and may remove a managed worktree. Missing conversation evidence or unsafe state postpones it. Workboard cannot restore a native archive or a removed worktree.
 - Labels, archive state, and sidebar pins can change outside Workboard. The host does not expose every atomic operation; uncertain outcomes require manual review instead of destructive retries.
+- The multi-host board and group mirroring run in the Paseo client, so they work only while a client with those hosts connected is open. They rely on Paseo loading one plugin client per connected host in a shared JavaScript context, which is not a public SDK contract; see [architecture](docs/architecture.md#multiple-hosts).
 - The List view has recorded Chrome checks. Electron, native mobile, long-duration edge autoscroll, and `Escape` or blur during an active drag remain unverified; see the verification guide for the full scope.
 
 ## License and acknowledgements

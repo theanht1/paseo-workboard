@@ -112,6 +112,37 @@ const zh = {
   dragChanged: "任务已发生变化，本次拖动已取消。",
   layoutSaveFailed: "无法记住列布局，本次调整仍生效。请检查客户端存储权限。",
   layoutSaved: "分组顺序已保存",
+  allHosts: "所有主机",
+  allHostsHint: "显示所有已连接且安装了 Workboard 的主机上的任务",
+  hostField: "主机",
+  thisHost: "{host}（当前主机）",
+  hostsTitle: "多主机",
+  hostsHint:
+    "Workboard 在每台主机上独立运行。看板会合并所有已连接且安装了 Workboard 的主机；对任务的修改写回其所属主机。",
+  groupMaster: "分组主机",
+  groupMasterHint:
+    "Paseo 打开期间，其它主机会镜像该主机的分组及顺序。选择“无”则各主机分别管理分组。",
+  groupMasterNone: "无（各主机保留自己的分组）",
+  hostRoles: {
+    master: "分组主机：其它主机镜像它的分组",
+    synced: "跟随 {master}：分组已同步",
+    waiting: "跟随 {master}：等待其上线",
+    pending: "正在检查…",
+    independent: "保留自己的分组",
+    error: "跟随 {master}：未同步，{error}",
+  },
+  hostOffline: "离线",
+  hostNoWorkboard: "此主机未提供 Workboard，或运行的版本较旧",
+  hostUnavailable: "无法加载“{host}”，暂不显示其任务。",
+  hiddenRemoteTasks:
+    "“{host}”有 {count} 个任务位于本看板没有的分组中。将本主机设为分组主机即可显示。",
+  groupsFollowing:
+    "分组镜像自“{master}”。请在该主机上编辑，或将分组主机设为“无”。",
+  changeGroupMaster: "更改分组主机",
+  changeGroupMasterConfirm:
+    "{hosts} 将以“{master}”的分组及顺序替换自己的分组。若某主机仍有任务位于“{master}”没有的分组中，该主机保持不变，直到这些任务被移走。",
+  clearGroupMasterConfirm: "各主机将保留当前分组，并分别管理。",
+  groupSyncPartial: "以下主机未保存此更改：{hosts}",
   hideDetails: "收起详情",
   changeRequestStates: {
     open: "开放",
@@ -171,6 +202,8 @@ const zh = {
   autoArchive: "自动归档",
   autoArchiveMigrationPaused:
     "升级时补建了已废弃分组，其标签可能匹配已有 workspace。自动归档已关闭，请核对到期任务后重新开启；存在到期任务时会先要求确认。",
+  autoArchiveGroupSyncPaused:
+    "从分组主机镜像的分组让更多标签计为已完成或已废弃。本主机已关闭自动归档，请核对到期任务后重新开启；存在到期任务时会先要求确认。",
   archiveAfterDays: "自动归档等待天数",
   archiveAfterDaysHint: "输入 1–365 的整数，保存后生效。",
   archiveAfterDaysInvalid: "请输入 1–365 的整数。",
@@ -297,6 +330,10 @@ const zh = {
   },
   archiveConfirmedByUser: "归档结果已由用户确认",
   mutationErrors: {
+    "group-sync-follower": "分组镜像自分组主机，请在分组主机上编辑。",
+    "group-sync-not-following": "此主机未跟随该分组主机，请刷新后重试。",
+    "group-sync-master-revoked": "该主机已不再是分组主机，请在设置中重新选择。",
+    "host-unavailable": "任务所属主机已断开，请稍后重试。",
     "card-order-changed": "列内任务顺序或成员已改变，请刷新后重试。",
     "card-order-invalid":
       "排序无效；只能移动当前任务并保留其它任务的相对顺序。",
@@ -536,6 +573,39 @@ const en: typeof zh = {
   layoutSaveFailed:
     "Could not remember the column layout. This session is updated; check client storage permissions.",
   layoutSaved: "Group order saved",
+  allHosts: "All hosts",
+  allHostsHint: "Show tasks from every connected host running Workboard",
+  hostField: "Host",
+  thisHost: "{host} (this host)",
+  hostsTitle: "Hosts",
+  hostsHint:
+    "Workboard runs separately on each host. The board combines every connected host running Workboard; task changes are written to the host that owns the task.",
+  groupMaster: "Group master",
+  groupMasterHint:
+    "While Paseo is open, other hosts mirror this host's groups and order. Choose None to manage groups on each host.",
+  groupMasterNone: "None (each host keeps its own groups)",
+  hostRoles: {
+    master: "Group master: other hosts mirror its groups",
+    synced: "Following {master}: groups in sync",
+    waiting: "Following {master}: waiting for it to come online",
+    pending: "Checking…",
+    independent: "Keeps its own groups",
+    error: "Following {master}: not synced. {error}",
+  },
+  hostOffline: "Offline",
+  hostNoWorkboard:
+    "Workboard is not available on this host, or it runs an older release",
+  hostUnavailable: "{host} could not be loaded; its tasks are not shown.",
+  hiddenRemoteTasks:
+    "{count} tasks on {host} are in groups this board does not have. Make this host the group master to show them.",
+  groupsFollowing:
+    "Groups are mirrored from {master}. Edit them there, or set the group master to None.",
+  changeGroupMaster: "Change group master",
+  changeGroupMasterConfirm:
+    "{hosts} will replace their groups and order with those of {master}. A host that still has tasks in groups {master} lacks stays unchanged until those tasks move.",
+  clearGroupMasterConfirm:
+    "Every host keeps its current groups and manages them separately.",
+  groupSyncPartial: "These hosts did not save the change: {hosts}",
   hideDetails: "Hide details",
   changeRequestStates: {
     open: "Open",
@@ -596,6 +666,8 @@ const en: typeof zh = {
   autoArchive: "Automatic archive",
   autoArchiveMigrationPaused:
     "An upgrade added a Canceled group whose label may match existing workspaces. Automatic archive was turned off. Review due tasks before re-enabling it; due tasks require confirmation first.",
+  autoArchiveGroupSyncPaused:
+    "Groups mirrored from the group master made more labels count as Done or Canceled. Automatic archive was turned off on this host. Review due tasks before re-enabling it; due tasks require confirmation first.",
   archiveAfterDays: "Days before automatic archive",
   archiveAfterDaysHint: "Enter an integer from 1 to 365, then save.",
   archiveAfterDaysInvalid: "Enter an integer from 1 to 365.",
@@ -731,6 +803,14 @@ const en: typeof zh = {
   },
   archiveConfirmedByUser: "Archive outcome confirmed by user",
   mutationErrors: {
+    "group-sync-follower":
+      "Groups are mirrored from the group master; edit them there.",
+    "group-sync-not-following":
+      "This host does not follow that group master; refresh and try again.",
+    "group-sync-master-revoked":
+      "That host is no longer the group master; choose one again in Settings.",
+    "host-unavailable":
+      "The host that owns this task is disconnected; try again later.",
     "card-order-changed":
       "Column order or membership changed. Refresh and retry.",
     "card-order-invalid":

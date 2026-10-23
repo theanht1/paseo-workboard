@@ -99,5 +99,6 @@ paseo daemon restart --home /path/to/test-home
 - 尚未验证真实远端 PR/MR 合并触发 Paseo 原生归档的路径。
 - 未证明全部自定义 Paseo 主题、未来 SDK 版本或所有远端 MR/PR 状态变化的行为。
 - 单元测试和 fixture 集成测试不能代替真实外部模型或 forge 服务的端到端验证。
+- 多 host 合并看板与分组镜像只由模拟各 host 插件运行时的单元测试覆盖，尚未在一个 Paseo 客户端连接两台真实 daemon 的环境中验证。其依赖的“每个 host 一份插件运行时”模型来自阅读 Paseo 0.11.2 Web 客户端代码，而非公开 SDK 约定。
 
 修改兼容性桥接前，应重新执行已支持版本的检查，并为受影响宿主行为补充证据。使用 `mise exec -- npm run check:package` 验证包内容；它不会发布。

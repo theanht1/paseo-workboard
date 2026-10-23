@@ -22,6 +22,9 @@ const runtime = vi.hoisted(() => ({
   filters: {} as any,
   language: "zh",
   context: null as any,
+  remotes: [] as any[],
+  hosts: [] as any[],
+  requestGroupSync: vi.fn(),
 }));
 vi.mock("react", async (original) => {
   const react = await original<typeof import("react")>();
@@ -82,6 +85,20 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => runtime.cache,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => runtime.mutation }));
+vi.mock("../client/federation-hooks", async (original) => ({
+  ...(await original<object>()),
+  useHostRuntimes: () => runtime.remotes.map((remote: any) => remote.runtime),
+  useHostSummaries: () => runtime.hosts,
+  useRemoteBoards: () => runtime.remotes,
+}));
+vi.mock("../client/federation", async (original) => {
+  const actual = await original<typeof import("../client/federation")>();
+  return { ...actual, mergeBoards: vi.fn(actual.mergeBoards) };
+});
+vi.mock("../client/host-runtimes", async (original) => ({
+  ...(await original<object>()),
+  requestGroupSync: () => runtime.requestGroupSync(),
+}));
 vi.mock("../client/paseo-language", () => ({
   usePaseoLanguage: () => runtime.language,
 }));
@@ -149,6 +166,7 @@ import { useDragHandle } from "../client/drag-handle";
 import { ConfirmationModal } from "../client/ConfirmationModal";
 import { Text } from "react-native";
 import { HintProvider, HintButton } from "../client/Hint";
+import { mergeBoards } from "../client/federation";
 
 const theme = {
   colors: {
@@ -286,7 +304,17 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   };
-  runtime.cache.setQueryData.mockImplementation((_key, update) => {
+  runtime.remotes = [];
+  runtime.hosts = [];
+  runtime.cache.setQueryData.mockImplementation((key, update) => {
+    const remote = runtime.remotes.find(
+      (item) => item.runtime.serverId === key[1],
+    );
+    if (remote) {
+      remote.board =
+        typeof update === "function" ? update(remote.board) : update;
+      return;
+    }
     runtime.query.data =
       typeof update === "function" ? update(runtime.query.data) : update;
   });
@@ -2849,4 +2877,236 @@ it("L14 feedback expires from the newest move's own eight-second window without 
   );
   vi.advanceTimersByTime(1);
   expect(() => byID(screen.render(), "workboard-move-feedback")).toThrow();
+});
+
+function remoteHost(
+  serverId: string,
+  cards: Card[],
+  settings: Record<string, unknown> = {},
+) {
+  const data = boardSchema.parse({
+    revision: 1,
+    serverId,
+    version: "test",
+    connected: true,
+    error: null,
+    refreshedAt: null,
+    settings,
+    cards,
+    projects: [
+      { id: `${serverId}-p`, name: "Repo", directory: "/r", isGit: true },
+    ],
+  });
+  const rpc = vi.fn(async (contract: { name: string }, input: any) =>
+    contract.name === "workboard.snapshot"
+      ? data
+      : {
+          ...data,
+          revision: 2,
+          settings:
+            input.action === "group-sync"
+              ? { ...data.settings, groupSyncMaster: input.master }
+              : data.settings,
+        },
+  );
+  return {
+    runtime: {
+      id: serverId,
+      serverId,
+      rpc,
+      sync: { state: "independent", error: null, checkedAt: null },
+      requestSync: vi.fn(),
+    },
+    label: serverId.toUpperCase(),
+    board: data as Board | undefined,
+    failed: false,
+    refetch: vi.fn(),
+  };
+}
+function twoHosts(local: Card[], remote: Card[], settings = {}) {
+  runtime.query.data = board(local);
+  const other = remoteHost("remote", remote, settings);
+  runtime.remotes = [other];
+  runtime.hosts = [
+    { serverId: "host", label: "Laptop", status: "online" },
+    { serverId: "remote", label: "Server", status: "online" },
+  ];
+  return other;
+}
+const cardIds = (view: ReactElement<any>) =>
+  view.props.cards.map((item: Card) => item.id);
+
+it("M-01 combines hosts on one board and writes a remote card to its own host", async () => {
+  const other = twoHosts(
+    [card("one", "review", "w")],
+    [card("far", "review", "rw")],
+  );
+  const screen = host();
+  const view = named(screen.render(), "BoardView");
+  expect(cardIds(view)).toEqual(["one", "far"]);
+  const remoteCard = view.props.cards[1];
+  expect(view.props.renderCard(remoteCard).props.host).toBe("Server");
+  expect(view.props.renderCard(view.props.cards[0]).props.host).toBe("Laptop");
+  await view.props.onStage(remoteCard, "done");
+  expect(runtime.mutation).not.toHaveBeenCalled();
+  expect(other.runtime.rpc).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "workboard.mutate" }),
+    expect.objectContaining({ action: "stage", taskId: "far", stage: "done" }),
+  );
+  expect(runtime.cache.setQueryData).toHaveBeenCalledWith(
+    ["workboard", "remote"],
+    expect.any(Function),
+  );
+});
+
+it("M-02 opens a remote workspace on the host that owns it", () => {
+  twoHosts([], [card("far", "review", "rw")]);
+  const navigation = { openWorkspace: vi.fn() };
+  const view = named(host("board", navigation).render(), "BoardView");
+  view.props.renderCard(view.props.cards[0]).props.onOpen();
+  expect(navigation.openWorkspace).toHaveBeenCalledWith({
+    workspaceId: "rw",
+    serverId: "remote",
+  });
+});
+
+it("M-03 switches between all hosts and this host only", () => {
+  twoHosts([card("one")], [card("far")]);
+  const screen = host();
+  const toggle = byID(screen.render(), "workboard-all-hosts");
+  expect(toggle.props["aria-pressed"]).toBe(true);
+  toggle.props.onPress();
+  const view = named(screen.render(), "BoardView");
+  expect(cardIds(view)).toEqual(["one"]);
+  expect(view.props.renderCard(view.props.cards[0]).props.host).toBeUndefined();
+});
+
+it("M-04 explains hidden remote tasks whose group this board lacks", () => {
+  twoHosts([card("one")], [card("far", "custom-group")]);
+  const tree = host().render();
+  expect(text(byID(tree, "workboard-hidden-remote"))).toContain("Server");
+  expect(cardIds(named(tree, "BoardView"))).toEqual(["one"]);
+});
+
+it("M-05 keeps a follower's groups locked on the board with an explanation", async () => {
+  runtime.query.data = boardSchema.parse({
+    ...board(),
+    settings: settingsSchema.parse({ groupSyncMaster: "remote" }),
+  });
+  runtime.hosts = [{ serverId: "remote", label: "Server", status: "online" }];
+  const view = named(host().render(), "BoardView");
+  view.props.onEdit(view.props.groups[0]);
+  expect(runtime.toast.show).toHaveBeenCalledWith(
+    t.groupsFollowing.replace("{master}", "Server"),
+    { variant: "warning" },
+  );
+  expect(await view.props.onReorder(["todo"], ["inbox"])).toBe(false);
+  expect(await view.props.onDelete(view.props.groups[0])).toBe(false);
+  expect(runtime.mutation).not.toHaveBeenCalled();
+  const settings = named(host("settings").render(), "SettingsPage");
+  expect(settings.props.groupsLockedBy).toBe("Server");
+});
+
+it("M-06 designates the group master on every reachable host", async () => {
+  const other = twoHosts([], []);
+  runtime.mutation.mockImplementation(async (input: any) => ({
+    ...runtime.query.data,
+    revision: 2,
+    settings: { ...runtime.query.data.settings, groupSyncMaster: input.master },
+  }));
+  const settings = named(host("settings").render(), "SettingsPage");
+  expect(settings.props.hosts.map((item: any) => item.serverId)).toEqual([
+    "host",
+    "remote",
+  ]);
+  expect(await settings.props.onSetGroupMaster("host")).toBe(true);
+  expect(runtime.mutation).toHaveBeenCalledWith({
+    action: "group-sync",
+    master: "host",
+  });
+  expect(other.runtime.rpc).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "workboard.mutate" }),
+    { action: "group-sync", master: "host" },
+  );
+  expect(runtime.requestGroupSync).toHaveBeenCalled();
+});
+
+it("M-07 creates a draft on the host chosen in the task form", async () => {
+  const other = twoHosts([], []);
+  const screen = host();
+  const tree = screen.render();
+  const modal = named(tree, "TaskModal");
+  expect(modal.props.hosts.map((item: any) => item.serverId)).toEqual([
+    "host",
+    "remote",
+  ]);
+  modal.props.onSave({
+    title: "Remote idea",
+    description: "",
+    projectId: "remote-p",
+    serverId: "remote",
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(runtime.mutation).not.toHaveBeenCalled();
+  expect(other.runtime.rpc).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "workboard.mutate" }),
+    {
+      action: "create",
+      title: "Remote idea",
+      description: "",
+      projectId: "remote-p",
+    },
+  );
+});
+
+it("M-08 keeps a remote project filter and quick-creates on that project's host", async () => {
+  const other = twoHosts([], []);
+  runtime.filters = { ...DEFAULT_FILTERS, projectId: "remote-p" };
+  const screen = host();
+  screen.render();
+  const tree = screen.render();
+  expect(named(tree, "ProjectPicker").props.value).toBe("remote-p");
+  const view = named(tree, "BoardView");
+  const todo = view.props.groups.find((group: any) => group.kind === "todo");
+  expect(await view.props.renderQuickCreate(todo).props.onCreate("Far")).toBe(
+    true,
+  );
+  expect(runtime.mutation).not.toHaveBeenCalled();
+  expect(other.runtime.rpc).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "workboard.mutate" }),
+    expect.objectContaining({
+      action: "create",
+      title: "Far",
+      projectId: "remote-p",
+    }),
+  );
+});
+
+it("M-09 waits for loading hosts before dropping a saved project filter", () => {
+  const other = twoHosts([], []);
+  const loaded = other.board;
+  other.board = undefined;
+  runtime.filters = { ...DEFAULT_FILTERS, projectId: "remote-p" };
+  const screen = host();
+  screen.render();
+  expect(named(screen.render(), "ProjectPicker").props.value).toBe("remote-p");
+  other.board = loaded;
+  runtime.filters = { ...DEFAULT_FILTERS, projectId: "gone" };
+  const fresh = host();
+  fresh.render();
+  expect(named(fresh.render(), "ProjectPicker").props.value).toBe("all");
+});
+
+it("M-10 merges hosts again only when a snapshot changes", () => {
+  const other = twoHosts([card("one")], [card("far")]);
+  const merge = vi.mocked(mergeBoards);
+  const screen = host();
+  screen.render();
+  const calls = merge.mock.calls.length;
+  screen.render();
+  screen.render();
+  expect(merge.mock.calls.length).toBe(calls);
+  other.board = { ...other.board!, revision: 2 };
+  expect(cardIds(named(screen.render(), "BoardView"))).toEqual(["one", "far"]);
+  expect(merge.mock.calls.length).toBe(calls + 1);
 });
