@@ -14,7 +14,7 @@ Workboard brings active workspaces into one board, with one task per workspace. 
 - **Board and list views.** Switch layouts while keeping the same tasks, filters, and ordering. Each view remembers its own collapsed groups.
 - **Status linked to workspace labels.** Move a task between groups or change its managed label in Paseo. Both update the same status while preserving unrelated labels. Optional exclusive status labels replace a previous managed label when a new one can be identified.
 - **Activity at a glance.** See Agent activity, conversation dates, and PR/MR, CI, and review information supplied by Paseo. Filter by project, activity, PR/MR condition, attention, or last conversation date.
-- **A configurable workflow.** Customize groups and their defaults, reorder tasks and groups by dragging or keyboard controls, and optionally pin in-progress workspaces in the sidebar.
+- **A configurable workflow.** Customize groups and their defaults, reorder tasks and groups by dragging or keyboard controls, and optionally pin In progress and Review workspaces in the sidebar.
 - **Optional automatic archiving.** Archive eligible completed or canceled workspaces after a configurable delay from their last verified conversation, with activity and Git safety checks. Disabled by default.
 - **Multiple hosts on one board.** Combine every connected host running Workboard, writing each change to the host that owns the task. Optionally mirror one master host's groups to the others.
 

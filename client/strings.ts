@@ -76,7 +76,8 @@ const zh = {
     attention: "Agent 有未读回复",
   },
   openWorkspace: "打开 workspace",
-  pinAutomatic: "Paseo 侧边栏：由 Workboard 自动置顶。离开进行中分组后取消。",
+  pinAutomatic:
+    "Paseo 侧边栏：由 Workboard 自动置顶。离开自动置顶的分组后取消。",
   pinManual: "Paseo 侧边栏：已有或手动置顶，Workboard 不会自动取消。",
   archive: "归档",
   settings: "设置",
@@ -222,6 +223,9 @@ const zh = {
   pinInProgressWorkspaces: "进行中任务在 Paseo 侧边栏自动置顶",
   pinInProgressHint:
     "按“进行中”分组判断；离开该分组时仅取消插件添加的置顶，保留你手动置顶的 workspace。",
+  pinReviewWorkspaces: "待验收任务在 Paseo 侧边栏自动置顶",
+  pinReviewHint:
+    "按“待验收”分组判断；两个开关都开启时，任务从进行中移到待验收会保留置顶。离开这些分组时仅取消插件添加的置顶。",
   exclusiveStatusLabels: "状态标签互斥（新标签替换旧标签）",
   exclusiveStatusHint:
     "任务在外部获得新的状态标签时，自动移除上一次的状态标签，只保留最新选择的分组；仅作用于下方分组配置的标签，其他标签不受影响。无法判断哪个标签更新时，仍会显示标签冲突提示。",
@@ -267,7 +271,8 @@ const zh = {
     todo: "接收 Todo 草稿；创建草稿不会创建 workspace 或会话。",
     "in-progress":
       "仅在开启“进行中任务在 Paseo 侧边栏自动置顶”时自动置顶；离开分组时仅取消插件添加的置顶。",
-    review: "等待人工验收；Agent 结束不会把任务自动标为完成。",
+    review:
+      "等待人工验收；Agent 结束不会把任务自动标为完成。仅在开启“待验收任务在 Paseo 侧边栏自动置顶”时自动置顶。",
     done: "开启自动归档后，最后对话超过 {days} 天且安全检查通过才归档 workspace。",
     canceled:
       "开启自动归档后，最后对话超过 {days} 天且安全检查通过才归档 workspace；草稿可手动归档。",
@@ -534,7 +539,7 @@ const en: typeof zh = {
   },
   openWorkspace: "Open workspace",
   pinAutomatic:
-    "Paseo sidebar: automatically pinned by Workboard. Leaving In progress removes this pin.",
+    "Paseo sidebar: automatically pinned by Workboard. Leaving the pinned groups removes this pin.",
   pinManual:
     "Paseo sidebar: existing or manual pin. Workboard will not remove it automatically.",
   archive: "Archive",
@@ -687,6 +692,9 @@ const en: typeof zh = {
   pinInProgressWorkspaces: "Pin in-progress tasks in the Paseo sidebar",
   pinInProgressHint:
     "Use the In progress group. Leaving it removes only the pin added by this plugin; manually pinned workspaces stay pinned.",
+  pinReviewWorkspaces: "Pin review tasks in the Paseo sidebar",
+  pinReviewHint:
+    "Use the Review group. With both switches on, a task keeps its pin when it moves from In progress to Review. Leaving the pinned groups removes only the pin added by this plugin.",
   exclusiveStatusLabels: "Exclusive status labels (newest replaces old)",
   exclusiveStatusHint:
     "When a task gains a new status label outside Workboard, remove the previous status label and keep only the latest group. Only labels configured as groups below are affected; ordinary labels are untouched. Conflicts whose newest label cannot be determined still raise the banner.",
@@ -733,9 +741,9 @@ const en: typeof zh = {
       "The first Inbox group receives unlabeled workspaces when no default destination is configured. Importing does not write labels.",
     todo: "Receives Todo drafts. Creating a draft creates no workspace or conversation.",
     "in-progress":
-      "Pins only when automatic sidebar pinning is enabled. Leaving the group removes only the pin added by this plugin.",
+      "Pins only when in-progress sidebar pinning is enabled. Leaving the group removes only the pin added by this plugin.",
     review:
-      "Waits for human acceptance. An agent finishing does not mark the task done.",
+      "Waits for human acceptance. An agent finishing does not mark the task done. Pins only when review sidebar pinning is enabled.",
     done: "Archives a workspace only when automatic archive is enabled, its last conversation is over {days} days old, and safety checks pass.",
     canceled:
       "Archives a workspace only when automatic archive is enabled, its last conversation is over {days} days old, and safety checks pass. Drafts can be archived manually.",

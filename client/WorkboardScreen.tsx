@@ -2757,6 +2757,22 @@ export function SettingsPage({
                 testID="workboard-pin-in-progress"
               />
               <SettingsSwitch
+                label={t.pinReviewWorkspaces}
+                hint={t.pinReviewHint}
+                value={settings.pinReviewWorkspaces}
+                onValueChange={async (value) => {
+                  await persist(
+                    {
+                      ...settings,
+                      pinReviewWorkspaces: value,
+                    },
+                    "pin-review",
+                  );
+                }}
+                disabled={controlDisabled("pin-review")}
+                testID="workboard-pin-review"
+              />
+              <SettingsSwitch
                 label={t.exclusiveStatusLabels}
                 hint={t.exclusiveStatusHint}
                 value={settings.exclusiveStatusLabels}

@@ -111,11 +111,11 @@ An unbound draft in a Canceled group can be manually archived from the board. It
 
 Paseo's native **Archive merged PR workspaces** setting is separate. It follows its own merge observations and safety checks, does not use Workboard’s waiting period, and does not set a Workboard task to Done.
 
-## Pin In progress workspaces
+## Pin In progress and Review workspaces
 
-The sidebar-pin setting is enabled by default. It follows the group's **In progress** type, not Agent runtime state. Workboard adds a sidebar pin when a task enters an In progress group and removes only a pin that it can identify as its own when the task leaves.
+Two sidebar-pin settings follow a group's type, not Agent runtime state. The **In progress** setting is enabled by default; the **Review** setting is off by default. Workboard adds a sidebar pin when a task enters a group whose type is pinned and removes only a pin that it can identify as its own when the task leaves. With both settings on, a task moving from In progress to Review keeps its pin.
 
-Manual pins are preserved. If you manually remove an automatic pin while the task remains In progress, Workboard does not force it back during that stay; leaving and re-entering the group can apply it again. Disabling the setting removes Workboard-owned pins and retains manual pins.
+Manual pins are preserved. If you manually remove an automatic pin while the task remains in a pinned group, Workboard does not force it back during that stay; leaving the pinned groups and re-entering one can apply it again. Disabling a setting removes Workboard-owned pins from that group type and retains manual pins.
 
 The native pin API has no ownership or compare-and-set operation. When an operation is uncertain because of a crash or concurrent native change, Workboard keeps the pin rather than risk removing a manual one.
 

@@ -117,7 +117,7 @@ describe("task stages and conversation-based expiry", () => {
       newestConflictStage("conflict" as never, ["task:todo"], groups),
     ).toBe(undefined);
   });
-  it("enables sidebar In progress pinning for older settings without changing other preferences", () => {
+  it("enables sidebar In progress pinning and leaves Review pinning off for older settings without changing other preferences", () => {
     const data = migrateData(
       {
         schemaVersion: 1,
@@ -133,6 +133,7 @@ describe("task stages and conversation-based expiry", () => {
       ...settingsSchema.parse({}),
       autoArchive: false,
       pinInProgressWorkspaces: true,
+      pinReviewWorkspaces: false,
       groups: DEFAULT_GROUPS,
       groupOrder: [],
     });

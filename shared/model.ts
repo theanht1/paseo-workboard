@@ -144,6 +144,7 @@ const preferences = {
   defaultStartGroup: stageSchema.nullable().default(null),
   defaultStartWorkGroup: stageSchema.nullable().default(null),
   pinInProgressWorkspaces: z.boolean().default(true),
+  pinReviewWorkspaces: z.boolean().default(false),
   exclusiveStatusLabels: z.boolean().default(false),
   // The serverId whose groups this host mirrors; its own serverId marks the master.
   groupSyncMaster: z.string().min(1).nullable().default(null),
