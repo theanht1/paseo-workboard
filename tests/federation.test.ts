@@ -10,9 +10,11 @@ import { mutationSchema } from "../shared/rpc";
 import {
   mergeBoards,
   mergeColumn,
+  projectMembers,
   routeMutation,
   type HostBoard,
 } from "../client/federation";
+import { visibleCards } from "../client/board-utils";
 
 function card(
   id: string,
@@ -100,7 +102,7 @@ describe("mergeBoards", () => {
     expect(merged.owners.get("a1")).toBe("a");
   });
 
-  it("adds remote cards, owners and labeled projects under the local groups", () => {
+  it("adds remote cards, owners and projects under the local groups", () => {
     const local = host("a", [card("a1"), card("a2", "review")]);
     const remote = host("b", [
       card("b1", "review"),
@@ -126,13 +128,81 @@ describe("mergeBoards", () => {
     expect(merged.owners.get("b1")).toBe("b");
     expect(merged.owners.get("a2")).toBe("a");
     expect(merged.hidden).toEqual([{ serverId: "b", label: "B", count: 1 }]);
-    expect(merged.board.projects.map((project) => project.name)).toEqual([
-      "Repo",
-      "Repo · B",
-    ]);
+    expect(merged.board.projects.map((project) => project.id)).toEqual(["a-p"]);
     expect(merged.projectOwners.get("b-p")).toBe("b");
     expect(merged.board.settings).toBe(local.board.settings);
     expect(merged.board.serverId).toBe("a");
+  });
+
+  it("merges same-named projects across hosts into one filter", () => {
+    const project = (id: string, name: string) => ({
+      id,
+      name,
+      directory: `/${id}`,
+      isGit: true,
+    });
+    const local = host("a", [{ ...card("a1"), projectId: "a-p" }], {
+      projects: [project("a-p", "Repo"), project("a-q", "Docs")],
+    });
+    const b = host(
+      "b",
+      [
+        { ...card("b1"), projectId: "b-p" },
+        { ...card("b2"), projectId: "b-x" },
+      ],
+      {
+        projects: [
+          project("b-p", "Repo"),
+          project("b-x", "Tools"),
+          project("b-y", "Tools"),
+        ],
+      },
+    );
+    const c = host("c", [{ ...card("c1"), projectId: "c-x" }], {
+      projects: [project("c-x", "Tools"), project("c-z", "Site")],
+    });
+    const merged = mergeBoards(local, [b, c]);
+    // A host's own duplicates stay apart; a project only one remote has names its host.
+    expect(merged.board.projects.map((item) => [item.id, item.name])).toEqual([
+      ["a-p", "Repo"],
+      ["a-q", "Docs"],
+      ["b-x", "Tools"],
+      ["b-y", "Tools · B"],
+      ["c-z", "Site · C"],
+    ]);
+    expect(merged.projectAliases.get("b-p")).toBe("a-p");
+    expect(merged.projectAliases.get("c-x")).toBe("b-x");
+    expect(merged.projectOwners.get("b-x")).toBe("b");
+    // Any host's ID selects the whole merged project.
+    expect(projectMembers(merged.projectAliases, "b-p")).toEqual([
+      "a-p",
+      "b-p",
+    ]);
+    expect(projectMembers(merged.projectAliases, "c-x")).toEqual([
+      "b-x",
+      "c-x",
+    ]);
+    expect(projectMembers(merged.projectAliases, "gone")).toEqual(["gone"]);
+    expect(
+      ids(
+        visibleCards(
+          merged.board,
+          projectMembers(merged.projectAliases, "a-p"),
+          "",
+          false,
+        ),
+      ),
+    ).toEqual(["a1", "b1"]);
+    expect(
+      ids(
+        visibleCards(
+          merged.board,
+          projectMembers(merged.projectAliases, "b-x"),
+          "",
+          false,
+        ),
+      ),
+    ).toEqual(["b2", "c1"]);
   });
 
   it("preserves every host's saved column order in the merged order", () => {

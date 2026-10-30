@@ -67,7 +67,12 @@ import { QuickCreate } from "./QuickCreate";
 import { HintButton, HintProvider } from "./Hint";
 import { usePaseoLanguage } from "./paseo-language";
 import { ConfirmationModal } from "./ConfirmationModal";
-import { mergeBoards, routeMutation, type HostBoard } from "./federation";
+import {
+  mergeBoards,
+  projectMembers,
+  routeMutation,
+  type HostBoard,
+} from "./federation";
 import {
   hostLabel,
   useHostRuntimes,
@@ -338,14 +343,14 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
   const remotesLoading = remoteBoards.some(
     (remote) => !remote.board && !remote.failed,
   );
-  const knownProjects = federation?.board.projects;
+  const knownProjects = federation?.projectAliases;
   useEffect(() => {
     if (
       serverBoard?.connected &&
       !remotesLoading &&
       projectId !== "all" &&
       projectId !== "none" &&
-      !knownProjects?.some((project) => project.id === projectId)
+      !knownProjects?.has(projectId)
     )
       updateFilters({ projectId: "all" });
   }, [
@@ -493,10 +498,18 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
           .map((remote) => remote.runtime.serverId)
       : []),
   ]);
-  const projectHost =
-    projectId === "all" || projectId === "none"
-      ? localId
-      : (federation.projectOwners.get(projectId) ?? localId);
+  // A saved filter may name any host's copy of a merged project; select the listed one.
+  const anyProject = projectId === "all" || projectId === "none";
+  const selectedProject = anyProject
+    ? projectId
+    : (federation.projectAliases.get(projectId) ?? projectId);
+  const projectScope = anyProject
+    ? projectId
+    : projectMembers(federation.projectAliases, projectId);
+  const draftProjectId = anyProject ? null : selectedProject;
+  const projectHost = anyProject
+    ? localId
+    : (federation.projectOwners.get(selectedProject) ?? localId);
   const hostStatuses: HostStatus[] = [
     ...new Set([
       localId,
@@ -545,7 +558,13 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       );
     return !failed.length;
   };
-  const cards = visibleCards(board, projectId, search, attentionOnly, filters);
+  const cards = visibleCards(
+    board,
+    projectScope,
+    search,
+    attentionOnly,
+    filters,
+  );
   const filterCount = activeFilterCount(filters);
   const hasActiveFilter = filterCount > 0;
   const allCards = visibleCards(board, "all", "", false);
@@ -733,7 +752,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
     setDraft({
       title: "",
       description: "",
-      projectId: projectId === "all" || projectId === "none" ? null : projectId,
+      projectId: draftProjectId,
       serverId: projectHost,
     });
   const clearFilters = () => updateFilters(DEFAULT_FILTERS);
@@ -747,7 +766,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
         );
     const hidden =
       saved &&
-      !visibleCards(next, projectId, search, attentionOnly, filters).some(
+      !visibleCards(next, projectScope, search, attentionOnly, filters).some(
         (card) => card.id === saved.id,
       );
     const message = editedId
@@ -809,7 +828,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
           </Pressable>
           <ProjectPicker
             board={board}
-            value={projectId}
+            value={selectedProject}
             setValue={(projectId) => updateFilters({ projectId })}
             t={t}
             theme={props.theme}
@@ -1306,10 +1325,7 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
                     stage: group.id,
                     title,
                     description: "",
-                    projectId:
-                      projectId === "all" || projectId === "none"
-                        ? null
-                        : projectId,
+                    projectId: draftProjectId,
                   },
                   `create:${group.id}`,
                   projectHost,
@@ -1941,8 +1957,16 @@ function TaskModal({
                 disabled={disabled}
                 onPress={() => {
                   if (option === host) return;
+                  // Keep the project when the other host has one with the same name.
+                  const name = board.projects.find(
+                    (project) => project.id === projectId,
+                  )?.name;
                   setServerId(option.serverId);
-                  setProjectId(null);
+                  setProjectId(
+                    option.board.projects.find(
+                      (project) => name !== undefined && project.name === name,
+                    )?.id ?? null,
+                  );
                 }}
                 style={[
                   styles.chip,

@@ -70,7 +70,7 @@ host settings 使用 schema version 8，保存任务、分组、偏好、绑定/
 
 每台 host 的 daemon 保存自己的 Workboard 数据，daemon 之间不复制数据。Paseo 会为每个已连接且安装了插件的 host 各执行一次插件客户端，每次执行的 `rpc` 只能访问自己的 daemon。`client/host-runtimes.ts` 将每次执行发布到共享全局对象上带版本号的 symbol 注册表中，并从首次快照得知其 `serverId`。条目只替换不修改，每次变化都会通知监听者，因此运行不同版本的 host 可以共用注册表。这依赖所有执行共享同一 JavaScript 上下文；公开 SDK 记载了 `useHosts` 和 `getPaseoClient`，但没有记载跨 host 的插件 RPC。
 
-界面会轮询其它已注册 host 的快照。`client/federation.ts` 以本地 host 的分组合并它们：远端卡片归入相同 ID 的分组，保留冲突和不在看板上的归档记录，其余计为隐藏。卡片和项目 ID 映射到所属 host。`routeMutation` 将任务变更发送给所属 host；合并后的排序拆分为所属 host 自己的列顺序（合并从不打乱任一 host 的顺序，因此服务端整列校验依然成立）；重置排序会发给该列中出现的每台 host；分组与设置变更留在本地。响应会更新所属 host 的快照缓存，并返回重新合并的看板。记住的跨 host 排列只用于 host 之间的先后，保存在客户端存储中。
+界面会轮询其它已注册 host 的快照。`client/federation.ts` 以本地 host 的分组合并它们：远端卡片归入相同 ID 的分组，保留冲突和不在看板上的归档记录，其余计为隐藏。卡片和项目 ID 映射到所属 host；不同 host 上的同名项目只列出一次，每个成员 ID 都映射到列出的项目，因此筛选能匹配它们的全部卡片，而变更仍使用各 host 自己的项目 ID。`routeMutation` 将任务变更发送给所属 host；合并后的排序拆分为所属 host 自己的列顺序（合并从不打乱任一 host 的顺序，因此服务端整列校验依然成立）；重置排序会发给该列中出现的每台 host；分组与设置变更留在本地。响应会更新所属 host 的快照缓存，并返回重新合并的看板。记住的跨 host 排列只用于 host 之间的先后，保存在客户端存储中。
 
 `settings.groupSyncMaster` 保存分组主机的 `serverId`，分组主机保存自己的 ID。默认值为 null，因此存储数据仍为 schema 版本 8。只有 `group-sync` 操作会修改它。跟随方通过 `settings` 和 `reorder-groups` 修改分组或分组顺序会被拒绝。跟随方自己的客户端执行每 30 秒、等待期间注册表变化后，以及界面在分组变更后请求时，与分组主机比较。若分组主机仍指向自己且布局不同，它只对自己的 host 调用 `sync-groups`。该操作要求本 host 正在跟随所指定的分组主机，复制分组及顺序，清除不再有效的默认分组，并复用 `saveSettings` 校验（跳过本地排序与默认分组占用检查），因此仍会拒绝删除任务正在使用的分组，以及改变仍有草稿的分组类型。若镜像新增了已完成/已废弃标签且自动归档开启，会关闭自动归档并设置 `archivePausedByGroupSync`（默认 false，重新开启自动归档时清除），因为跟随方无人看到到期任务预览。镜像是幂等的，多个客户端并发也会收敛。
 
