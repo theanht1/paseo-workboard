@@ -701,6 +701,67 @@ describe.skipIf(offsetRun)("isolated Paseo workboard", () => {
     }
   });
 
+  test("follows a group master through native storage and plugin reload", async () => {
+    const initial = await readyBoard();
+    const stamp = Date.now();
+    const master = `integration-master-${stamp}`;
+    const group: Group = {
+      id: `mirrored-${stamp}`,
+      kind: "in-progress",
+      name: "Mirrored",
+      label: `task:mirrored-${stamp}`,
+      color: "teal",
+    };
+    const groups = [...initial.settings.groups, group];
+    const groupOrder = [group.id, ...initial.settings.groups.map((g) => g.id)];
+    try {
+      const following = await rpc<Board>("workboard.mutate", {
+        action: "group-sync",
+        master,
+      });
+      expect(following.settings.groupSyncMaster).toBe(master);
+      await expect(updateSettings({ groups })).rejects.toThrow(
+        "group-sync-follower",
+      );
+      await expect(
+        rpc<Board>("workboard.mutate", {
+          action: "sync-groups",
+          master: `${master}-other`,
+          groups,
+          groupOrder,
+        }),
+      ).rejects.toThrow("group-sync-not-following");
+      const mirrored = await rpc<Board>("workboard.mutate", {
+        action: "sync-groups",
+        master,
+        groups,
+        groupOrder,
+      });
+      expect(mirrored.settings.groups).toEqual(groups);
+      expect(mirrored.settings.groupOrder).toEqual(groupOrder);
+      await client.reloadPlugin(pluginId);
+      const reloaded = await readyBoard();
+      expect(reloaded.settings.groupSyncMaster).toBe(master);
+      expect(reloaded.settings.groups).toEqual(groups);
+      expect(reloaded.settings.groupOrder).toEqual(groupOrder);
+      const removed = await rpc<Board>("workboard.mutate", {
+        action: "sync-groups",
+        master,
+        groups: initial.settings.groups,
+        groupOrder: initial.settings.groupOrder,
+      });
+      expect(removed.settings.groups).toEqual(initial.settings.groups);
+    } finally {
+      await rpc<Board>("workboard.mutate", {
+        action: "group-sync",
+        master: null,
+      });
+      const current = await snapshot();
+      if (current.settings.groups.some((item) => item.id === group.id))
+        await updateSettings({ groups: initial.settings.groups });
+    }
+  });
+
   test("creates an unbound draft and keeps it through a plugin restart", async () => {
     const initial = await readyBoard();
     const agentCount = (

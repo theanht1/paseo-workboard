@@ -4,12 +4,18 @@ import { Store } from "../server/store";
 import { DEFAULT_GROUPS, settingsSchema } from "../shared/model";
 import { fixture, workspace } from "./fixtures";
 
-async function enabled(board: Workboard, value: boolean) {
+async function enabled(
+  board: Workboard,
+  value: boolean,
+  key:
+    | "pinInProgressWorkspaces"
+    | "pinReviewWorkspaces" = "pinInProgressWorkspaces",
+) {
   const current = board.snapshot();
   await board.mutate({
     action: "settings",
     revision: current.revision,
-    settings: { ...current.settings, pinInProgressWorkspaces: value },
+    settings: { ...current.settings, [key]: value },
   });
 }
 
@@ -112,6 +118,64 @@ it("supports custom In progress groups, releases owned pins on disable, and igno
     inventory.workspaces[0].labels.push("task:done");
     await board.refresh();
     expect(inventory.workspaces[0].pinnedAt).toBeNull();
+  } finally {
+    board.dispose();
+  }
+});
+
+it("pins Review tasks when enabled and keeps an owned pin from In progress through Review", async () => {
+  const { board, host, inventory, store } = fixture({
+    settings: settingsSchema.parse({ pinReviewWorkspaces: true }),
+  });
+  const moving = workspace("moving", "Moving", ["task:in-progress"]);
+  const reviewed = workspace("reviewed", "Reviewed", ["task:review"]);
+  inventory.workspaces.push(moving, reviewed);
+  await board.start();
+  try {
+    expect(host.setPinned).toHaveBeenCalledTimes(2);
+    expect(host.setPinned).toHaveBeenCalledWith("moving", true);
+    expect(host.setPinned).toHaveBeenCalledWith("reviewed", true);
+    const pinnedAt = moving.pinnedAt;
+    moving.labels = ["task:review"];
+    await board.refresh();
+    expect(host.setPinned).toHaveBeenCalledTimes(2);
+    expect(moving.pinnedAt).toBe(pinnedAt);
+    moving.labels = ["task:done"];
+    await board.refresh();
+    expect(host.setPinned).toHaveBeenLastCalledWith("moving", false);
+    expect(moving.pinnedAt).toBeNull();
+    expect(store.current.autoPins).toEqual({ reviewed: reviewed.pinnedAt });
+  } finally {
+    board.dispose();
+  }
+});
+
+it("keeps the Review switch independent and releases only Review pins when it is turned off", async () => {
+  const { board, host, inventory } = fixture({
+    settings: settingsSchema.parse({
+      pinInProgressWorkspaces: false,
+      pinReviewWorkspaces: true,
+      groups: [
+        ...DEFAULT_GROUPS,
+        { id: "qa", kind: "review", name: "QA", label: "work:qa" },
+      ],
+    }),
+  });
+  const working = workspace("working", "Working", ["task:in-progress"]);
+  const custom = workspace("custom", "Custom", ["work:qa"]);
+  inventory.workspaces.push(working, custom);
+  await board.start();
+  try {
+    expect(host.setPinned).toHaveBeenCalledExactlyOnceWith("custom", true);
+    await enabled(board, true);
+    await board.refresh();
+    expect(host.setPinned).toHaveBeenLastCalledWith("working", true);
+    await enabled(board, false, "pinReviewWorkspaces");
+    await board.refresh();
+    expect(host.setPinned).toHaveBeenLastCalledWith("custom", false);
+    expect(host.setPinned).toHaveBeenCalledTimes(3);
+    expect(working.pinnedAt).toBeTruthy();
+    expect(custom.pinnedAt).toBeNull();
   } finally {
     board.dispose();
   }

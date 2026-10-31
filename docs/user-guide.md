@@ -101,6 +101,16 @@ Workboard settings opened inside Paseo's settings panel omit the Back to board e
 
 Reordering groups changes only their display order. It does not change the default draft destination or which In progress group Start work chooses.
 
+## Use multiple hosts
+
+Each Paseo host runs its own Workboard with its own tasks and settings. When the Paseo client is connected to several hosts that run this Workboard release, the board shows their tasks together. Each card and row then names its host before the project. The **All hosts** toolbar button switches between the combined board and this host only; the choice is remembered per client.
+
+Columns come from the host whose Workboard you opened. A task from another host joins the group with the same group ID. Tasks in groups this board does not have stay hidden, and a notice counts them per host; mirroring groups from one master (below) avoids this. Every change is sent to the host that owns the task: moving, editing, starting work, ordering, undo and archive actions. A workspace cannot move between hosts. New drafts are created on this host, or on the host chosen in the task form; quick create uses the host of the selected project filter. Starting work on another host's draft lists only that host's projects and workspaces. Drag order within a group is still saved per host; where two hosts share a group, the board remembers your last combined arrangement locally and otherwise interleaves by recent activity.
+
+In **Settings → Hosts**, **Group master** chooses one host whose groups and group order every other host mirrors. Choosing a master writes the choice to every reachable host after a confirmation; choose **None** to let each host manage its groups again. While Paseo is open, each following host compares itself with the master every 30 seconds and right after the master's groups change, then copies the groups and their order. Group colors, names, labels and types all follow the master. A follower keeps its own general settings, defaults and tasks; a default that no longer fits the mirrored groups falls back to the first group of its type. Groups cannot be edited, reordered or deleted on a follower. If a mirror makes more labels count as Done or Canceled, a follower turns off the matching automatic-archive rule that was on and explains why in its Settings, because the mirror cannot show the due-task preview a local edit does; review due tasks there before re-enabling it.
+
+A follower refuses a mirror that would delete a group still used by its tasks, or change the type of a group that still holds its drafts, exactly as a local edit would. The Hosts list then shows the reason; move those tasks on that host and the next check succeeds. It also shows when the master is offline, no longer claims the role, or when a host is offline or runs no compatible Workboard. Hosts that were offline keep their earlier choice until you set the master again.
+
 ## Archive workspaces
 
 Automatic archive is off by default. Open **Settings → Automatic archive**:
@@ -141,11 +151,11 @@ An unbound draft in a Canceled group can be manually archived from the board. It
 
 Paseo's native **Archive merged PR workspaces** setting is separate. It follows its own merge observations and safety checks, does not use Workboard’s waiting period, and does not set a Workboard task to Done.
 
-## Pin In progress workspaces
+## Pin In progress and Review workspaces
 
-The sidebar-pin setting is enabled by default. It follows the group's **In progress** type, not Agent runtime state. Workboard adds a sidebar pin when a task enters an In progress group and removes only a pin that it can identify as its own when the task leaves.
+Two sidebar-pin settings follow a group's type, not Agent runtime state. The **In progress** setting is enabled by default; the **Review** setting is off by default. Workboard adds a sidebar pin when a task enters a group whose type is pinned and removes only a pin that it can identify as its own when the task leaves. With both settings on, a task moving from In progress to Review keeps its pin.
 
-Manual pins are preserved. If you manually remove an automatic pin while the task remains In progress, Workboard does not force it back during that stay; leaving and re-entering the group can apply it again. Disabling the setting removes Workboard-owned pins and retains manual pins.
+Manual pins are preserved. If you manually remove an automatic pin while the task remains in a pinned group, Workboard does not force it back during that stay; leaving the pinned groups and re-entering one can apply it again. Disabling a setting removes Workboard-owned pins from that group type and retains manual pins.
 
 The native pin API has no ownership or compare-and-set operation. When an operation is uncertain because of a crash or concurrent native change, Workboard keeps the pin rather than risk removing a manual one.
 
@@ -155,6 +165,7 @@ When stored data has an unsupported version or cannot be parsed, the board shows
 
 - The plugin manifest sets the minimum Paseo version. Its internal label bridge may require changes later; see the README installation and limitations notes for the compatibility range.
 - Local filters, view choice, separate board/list collapsed groups, and board column widths are stored per client and host; they are not shared task data.
+- The combined board and group mirroring run in the Paseo client. Without an open client connected to both hosts, followers do not update.
 - Workspace labels and native archive/pin operations can change outside Workboard. The plugin rechecks state where possible, but native APIs do not provide every atomic operation.
 - Paseo refuses the provider-subagent API for archived parents, and its pi provider replays history without per-row timestamps, so Workboard retains displayed bounds and defers automatic archive when child inventory is incomplete or conversation evidence cannot safely bound parent and child history.
 

@@ -52,6 +52,7 @@ function CardAction({
 export function TaskItem({
   card,
   board,
+  host,
   t,
   theme,
   disabled,
@@ -71,6 +72,8 @@ export function TaskItem({
 }: {
   card: Card;
   board: Board;
+  /** The owning host's label when the board combines hosts. */
+  host?: string;
   t: ReturnType<typeof strings>;
   theme: PluginSurfaceProps["theme"];
   disabled: boolean;
@@ -601,6 +604,7 @@ export function TaskItem({
           { color: theme.colors.foregroundMuted },
         ]}
       >
+        {host ? `${host} · ` : ""}
         {card.projectName || t.unassigned}
       </Text>
     );
@@ -857,6 +861,7 @@ export function TaskItem({
             { color: theme.colors.foregroundMuted, flex: 1 },
           ]}
         >
+          {host ? `${host} · ` : ""}
           {card.projectName || t.unassigned}
         </Text>
         {card.pinState !== "none" && (

@@ -100,6 +100,16 @@ export const mutationSchema = z.discriminatedUnion("action", [
     groupOrder: groupOrderSchema,
   }),
   z.object({
+    action: z.literal("group-sync"),
+    master: z.string().min(1).nullable(),
+  }),
+  z.object({
+    action: z.literal("sync-groups"),
+    master: z.string().min(1),
+    groups: groupsSchema,
+    groupOrder: groupOrderSchema,
+  }),
+  z.object({
     action: z.literal("settings"),
     revision: z.number(),
     expectedSettings: settingsSchema

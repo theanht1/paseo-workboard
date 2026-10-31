@@ -156,6 +156,12 @@ it.each([
     false,
   ],
   [
+    "Review sidebar pinning",
+    "workboard-pin-review",
+    "pinReviewWorkspaces",
+    true,
+  ],
+  [
     "exclusive status labels",
     "workboard-exclusive-status-labels",
     "exclusiveStatusLabels",
@@ -193,7 +199,9 @@ it.each([
         ? "settings:done-archive"
         : key === "exclusiveStatusLabels"
           ? "settings:exclusive"
-          : "settings:pin",
+          : key === "pinReviewWorkspaces"
+            ? "settings:pin-review"
+            : "settings:pin",
     );
     expect(
       findByTestId(renderSettings(initial, mutate), testID).props.value,

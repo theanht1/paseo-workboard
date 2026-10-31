@@ -1,6 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WorkboardScreen } from "./client/WorkboardScreen";
+import { startHostRuntime } from "./client/host-runtimes";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 2_000 } },
@@ -18,6 +19,11 @@ const SettingsSurface = (props: Parameters<typeof WorkboardScreen>[0]) => (
 );
 
 export default function contribute(client: PluginClientContext) {
+  // Older Paseo releases omit the per-host RPC capability; the board then stays single-host.
+  const stopHostRuntime =
+    typeof client.rpc === "function"
+      ? startHostRuntime(client.rpc)
+      : () => undefined;
   const removeSurface = client.addSurface("workboard", Surface);
   const removeSidebar = client.addSidebarItem({
     id: "workboard",
@@ -44,5 +50,6 @@ export default function contribute(client: PluginClientContext) {
     removeSettings();
     removeSidebar();
     removeSurface();
+    stopHostRuntime();
   };
 }

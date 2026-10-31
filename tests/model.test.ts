@@ -154,7 +154,7 @@ describe("task stages and conversation-based expiry", () => {
       newestConflictStage("conflict" as never, ["task:todo"], groups),
     ).toBe(undefined);
   });
-  it("enables sidebar In progress pinning and defers missing exclusivity for older settings", () => {
+  it("enables sidebar In progress pinning, leaves Review pinning off and defers missing exclusivity for older settings", () => {
     const data = migrateData(
       {
         schemaVersion: 1,
@@ -170,6 +170,7 @@ describe("task stages and conversation-based expiry", () => {
       ...settingsSchema.parse({}),
       exclusiveStatusLabels: false,
       pinInProgressWorkspaces: true,
+      pinReviewWorkspaces: false,
       groups: DEFAULT_GROUPS,
       groupOrder: [],
     });

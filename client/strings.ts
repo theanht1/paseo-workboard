@@ -103,7 +103,8 @@ const zh = {
     attention: "Agent 有未读回复",
   },
   openWorkspace: "打开 workspace",
-  pinAutomatic: "Paseo 侧边栏：由 Workboard 自动置顶。离开进行中分组后取消。",
+  pinAutomatic:
+    "Paseo 侧边栏：由 Workboard 自动置顶。离开自动置顶的分组后取消。",
   pinManual: "Paseo 侧边栏：已有或手动置顶，Workboard 不会自动取消。",
   archive: "归档",
   settings: "设置",
@@ -146,6 +147,37 @@ const zh = {
   dragChanged: "任务已发生变化，本次拖动已取消。",
   layoutSaveFailed: "无法记住列布局，本次调整仍生效。请检查客户端存储权限。",
   layoutSaved: "分组顺序已保存",
+  allHosts: "所有主机",
+  allHostsHint: "显示所有已连接且安装了 Workboard 的主机上的任务",
+  hostField: "主机",
+  thisHost: "{host}（当前主机）",
+  hostsTitle: "多主机",
+  hostsHint:
+    "Workboard 在每台主机上独立运行。看板会合并所有已连接且安装了 Workboard 的主机；对任务的修改写回其所属主机。",
+  groupMaster: "分组主机",
+  groupMasterHint:
+    "Paseo 打开期间，其它主机会镜像该主机的分组及顺序。选择“无”则各主机分别管理分组。",
+  groupMasterNone: "无（各主机保留自己的分组）",
+  hostRoles: {
+    master: "分组主机：其它主机镜像它的分组",
+    synced: "跟随 {master}：分组已同步",
+    waiting: "跟随 {master}：等待其上线",
+    pending: "正在检查…",
+    independent: "保留自己的分组",
+    error: "跟随 {master}：未同步，{error}",
+  },
+  hostOffline: "离线",
+  hostNoWorkboard: "此主机未提供 Workboard，或运行的版本较旧",
+  hostUnavailable: "无法加载“{host}”，暂不显示其任务。",
+  hiddenRemoteTasks:
+    "“{host}”有 {count} 个任务位于本看板没有的分组中。将本主机设为分组主机即可显示。",
+  groupsFollowing:
+    "分组镜像自“{master}”。请在该主机上编辑，或将分组主机设为“无”。",
+  changeGroupMaster: "更改分组主机",
+  changeGroupMasterConfirm:
+    "{hosts} 将以“{master}”的分组及顺序替换自己的分组。若某主机仍有任务位于“{master}”没有的分组中，该主机保持不变，直到这些任务被移走。",
+  clearGroupMasterConfirm: "各主机将保留当前分组，并分别管理。",
+  groupSyncPartial: "以下主机未保存此更改：{hosts}",
   hideDetails: "收起详情",
   changeRequestStates: {
     open: "开放",
@@ -241,6 +273,8 @@ const zh = {
   archiveDoneAfterDays: "已完成任务等待天数",
   archiveDaysHint: "输入 1–365 的整数，保存后生效。",
   archiveDaysInvalid: "请输入 1–365 的整数。",
+  autoArchiveGroupSyncPaused:
+    "从分组主机镜像的分组让更多标签计为已完成或已废弃。本主机已关闭相应的自动归档规则，请核对到期任务后重新开启；存在到期任务时会先要求确认。",
   defaultDraftGroupSetting: "新草稿默认分组",
   defaultStartGroupSetting: "未标记 workspace 默认分组",
   defaultStartWorkGroupSetting: "开始工作默认分组（进行中）",
@@ -263,6 +297,9 @@ const zh = {
   pinInProgressWorkspaces: "进行中任务在 Paseo 侧边栏自动置顶",
   pinInProgressHint:
     "按“进行中”分组判断；离开该分组时仅取消插件添加的置顶，保留你手动置顶的 workspace。",
+  pinReviewWorkspaces: "待验收任务在 Paseo 侧边栏自动置顶",
+  pinReviewHint:
+    "按“待验收”分组判断；两个开关都开启时，任务从进行中移到待验收会保留置顶。离开这些分组时仅取消插件添加的置顶。",
   exclusiveStatusLabels: "状态标签互斥（新标签替换旧标签）",
   exclusiveStatusHint:
     "任务在外部获得新的状态标签时，自动移除上一次的状态标签，只保留最新选择的分组；仅作用于下方分组配置的标签，其他标签不受影响。无法判断哪个标签更新时，仍会显示标签冲突提示。",
@@ -308,7 +345,8 @@ const zh = {
     todo: "接收 Todo 草稿；创建草稿不会创建 workspace 或会话。",
     "in-progress":
       "仅在开启“进行中任务在 Paseo 侧边栏自动置顶”时自动置顶；离开分组时仅取消插件添加的置顶。",
-    review: "等待人工验收；Agent 结束不会把任务自动标为完成。",
+    review:
+      "等待人工验收；Agent 结束不会把任务自动标为完成。仅在开启“待验收任务在 Paseo 侧边栏自动置顶”时自动置顶。",
     done: "仅当“自动归档已完成任务”已启用、等待期限已到且安全检查通过时，才会归档 workspace。",
     canceled:
       "仅当“自动归档已废弃任务”已启用、等待期限已到且安全检查通过时，才会归档 workspace；草稿可手动归档。",
@@ -377,6 +415,10 @@ const zh = {
     "Agent 处于空闲状态，刷新时不会唤醒它来列出 provider 子 agent；归档前才会检查",
   archiveConfirmedByUser: "归档结果已由用户确认",
   mutationErrors: {
+    "group-sync-follower": "分组镜像自分组主机，请在分组主机上编辑。",
+    "group-sync-not-following": "此主机未跟随该分组主机，请刷新后重试。",
+    "group-sync-master-revoked": "该主机已不再是分组主机，请在设置中重新选择。",
+    "host-unavailable": "任务所属主机已断开，请稍后重试。",
     "card-order-changed": "列内任务顺序或成员已改变，请刷新后重试。",
     "card-order-invalid":
       "排序无效；只能移动当前任务并保留其它任务的相对顺序。",
@@ -621,7 +663,7 @@ const en: typeof zh = {
   },
   openWorkspace: "Open workspace",
   pinAutomatic:
-    "Paseo sidebar: automatically pinned by Workboard. Leaving In progress removes this pin.",
+    "Paseo sidebar: automatically pinned by Workboard. Leaving the pinned groups removes this pin.",
   pinManual:
     "Paseo sidebar: existing or manual pin. Workboard will not remove it automatically.",
   archive: "Archive",
@@ -667,6 +709,39 @@ const en: typeof zh = {
   layoutSaveFailed:
     "Could not remember the column layout. This session is updated; check client storage permissions.",
   layoutSaved: "Group order saved",
+  allHosts: "All hosts",
+  allHostsHint: "Show tasks from every connected host running Workboard",
+  hostField: "Host",
+  thisHost: "{host} (this host)",
+  hostsTitle: "Hosts",
+  hostsHint:
+    "Workboard runs separately on each host. The board combines every connected host running Workboard; task changes are written to the host that owns the task.",
+  groupMaster: "Group master",
+  groupMasterHint:
+    "While Paseo is open, other hosts mirror this host's groups and order. Choose None to manage groups on each host.",
+  groupMasterNone: "None (each host keeps its own groups)",
+  hostRoles: {
+    master: "Group master: other hosts mirror its groups",
+    synced: "Following {master}: groups in sync",
+    waiting: "Following {master}: waiting for it to come online",
+    pending: "Checking…",
+    independent: "Keeps its own groups",
+    error: "Following {master}: not synced. {error}",
+  },
+  hostOffline: "Offline",
+  hostNoWorkboard:
+    "Workboard is not available on this host, or it runs an older release",
+  hostUnavailable: "{host} could not be loaded; its tasks are not shown.",
+  hiddenRemoteTasks:
+    "{count} tasks on {host} are in groups this board does not have. Make this host the group master to show them.",
+  groupsFollowing:
+    "Groups are mirrored from {master}. Edit them there, or set the group master to None.",
+  changeGroupMaster: "Change group master",
+  changeGroupMasterConfirm:
+    "{hosts} will replace their groups and order with those of {master}. A host that still has tasks in groups {master} lacks stays unchanged until those tasks move.",
+  clearGroupMasterConfirm:
+    "Every host keeps its current groups and manages them separately.",
+  groupSyncPartial: "These hosts did not save the change: {hosts}",
   hideDetails: "Hide details",
   changeRequestStates: {
     open: "Open",
@@ -765,6 +840,8 @@ const en: typeof zh = {
   archiveDoneAfterDays: "Done archive delay (days)",
   archiveDaysHint: "Enter an integer from 1 to 365, then save.",
   archiveDaysInvalid: "Enter an integer from 1 to 365.",
+  autoArchiveGroupSyncPaused:
+    "Groups mirrored from the group master made more labels count as Done or Canceled. The affected automatic-archive rules were turned off on this host. Review due tasks before re-enabling them; due tasks require confirmation first.",
   defaultDraftGroupSetting: "Default group for new drafts",
   defaultStartGroupSetting: "Default group for unlabeled workspaces",
   defaultStartWorkGroupSetting: "Default Start work group (In progress)",
@@ -789,6 +866,9 @@ const en: typeof zh = {
   pinInProgressWorkspaces: "Pin in-progress tasks in the Paseo sidebar",
   pinInProgressHint:
     "Use the In progress group. Leaving it removes only the pin added by this plugin; manually pinned workspaces stay pinned.",
+  pinReviewWorkspaces: "Pin review tasks in the Paseo sidebar",
+  pinReviewHint:
+    "Use the Review group. With both switches on, a task keeps its pin when it moves from In progress to Review. Leaving the pinned groups removes only the pin added by this plugin.",
   exclusiveStatusLabels: "Exclusive status labels (newest replaces old)",
   exclusiveStatusHint:
     "When a task gains a new status label outside Workboard, remove the previous status label and keep only the latest group. Only labels configured as groups below are affected; ordinary labels are untouched. Conflicts whose newest label cannot be determined still raise the banner.",
@@ -835,9 +915,9 @@ const en: typeof zh = {
       "The first Inbox group receives unlabeled workspaces when no default destination is configured. Importing does not write labels.",
     todo: "Receives Todo drafts. Creating a draft creates no workspace or conversation.",
     "in-progress":
-      "Pins only when automatic sidebar pinning is enabled. Leaving the group removes only the pin added by this plugin.",
+      "Pins only when in-progress sidebar pinning is enabled. Leaving the group removes only the pin added by this plugin.",
     review:
-      "Waits for human acceptance. An agent finishing does not mark the task done.",
+      "Waits for human acceptance. An agent finishing does not mark the task done. Pins only when review sidebar pinning is enabled.",
     done: "Archives a workspace only when the Done automatic-archive rule is enabled, its delay has elapsed, and safety checks pass.",
     canceled:
       "Archives a workspace only when the Canceled automatic-archive rule is enabled, its delay has elapsed, and safety checks pass. Drafts can be archived manually.",
@@ -912,6 +992,14 @@ const en: typeof zh = {
     "The agent is idle, so a refresh does not wake it to list its provider children; they are checked before archive",
   archiveConfirmedByUser: "Archive outcome confirmed by user",
   mutationErrors: {
+    "group-sync-follower":
+      "Groups are mirrored from the group master; edit them there.",
+    "group-sync-not-following":
+      "This host does not follow that group master; refresh and try again.",
+    "group-sync-master-revoked":
+      "That host is no longer the group master; choose one again in Settings.",
+    "host-unavailable":
+      "The host that owns this task is disconnected; try again later.",
     "card-order-changed":
       "Column order or membership changed. Refresh and retry.",
     "card-order-invalid":
