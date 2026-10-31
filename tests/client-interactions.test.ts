@@ -5041,3 +5041,61 @@ it("M-10 merges hosts again only when a snapshot changes", () => {
   expect(cardIds(named(screen.render(), "BoardView"))).toEqual(["one", "far"]);
   expect(merge.mock.calls.length).toBe(calls + 1);
 });
+
+it("M-11 merges same-named projects across hosts into one project filter", async () => {
+  const other = twoHosts(
+    [{ ...card("one"), projectId: "host-p" }, card("loose")],
+    [{ ...card("far"), projectId: "remote-p" }],
+  );
+  runtime.query.data = {
+    ...runtime.query.data,
+    projects: [{ id: "host-p", name: "Repo", directory: "/r", isGit: true }],
+  };
+  runtime.mutation.mockResolvedValue({ ...runtime.query.data, revision: 2 });
+  // A filter saved on the remote copy selects the merged project.
+  runtime.filters = { ...DEFAULT_FILTERS, projectId: "remote-p" };
+  const screen = host();
+  screen.render();
+  const tree = screen.render();
+  const picker = named(tree, "ProjectPicker");
+  expect(picker.props.value).toBe("host-p");
+  expect(picker.props.board.projects.map((item: any) => item.name)).toEqual([
+    "Repo",
+  ]);
+  const view = named(tree, "BoardView");
+  expect(cardIds(view)).toEqual(["one", "far"]);
+  const todo = view.props.groups.find((group: any) => group.kind === "todo");
+  expect(await view.props.renderQuickCreate(todo).props.onCreate("Near")).toBe(
+    true,
+  );
+  expect(runtime.mutation).toHaveBeenCalledWith(
+    expect.objectContaining({ action: "create", projectId: "host-p" }),
+  );
+  expect(other.runtime.rpc).not.toHaveBeenCalledWith(
+    expect.objectContaining({ name: "workboard.mutate" }),
+    expect.anything(),
+  );
+
+  // Choosing another host in the task form keeps the same-named project.
+  const element = named(tree, "TaskModal");
+  const onSave = vi.fn();
+  const modal = mount(element.type, {
+    ...element.props,
+    form: {
+      title: "Idea",
+      description: "",
+      projectId: "host-p",
+      serverId: "host",
+    },
+    onSave,
+  });
+  modal.render();
+  byLabel(modal.render(), `${t.hostField}: Server`).props.onPress();
+  find(
+    modal.render(),
+    (e) => !!e.props.onPress && text(e) === t.create,
+  ).props.onPress();
+  expect(onSave).toHaveBeenCalledWith(
+    expect.objectContaining({ serverId: "remote", projectId: "remote-p" }),
+  );
+});

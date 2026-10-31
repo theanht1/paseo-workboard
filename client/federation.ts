@@ -15,6 +15,8 @@ export type Federation = {
   owners: Map<string, string>;
   /** Project ID to the serverId that owns it. */
   projectOwners: Map<string, string>;
+  /** Project ID to the listed project it merges into; same-named projects on different hosts share one. */
+  projectAliases: Map<string, string>;
   /** Remote cards whose group does not exist on this board, per host. */
   hidden: { serverId: string; label: string; count: number }[];
 };
@@ -70,13 +72,20 @@ export function mergeBoards(
 ): Federation {
   const owners = new Map<string, string>();
   const projectOwners = new Map<string, string>();
+  const projectAliases = new Map<string, string>();
   const groupIds = new Set(
     local.board.settings.groups.map((group) => group.id),
   );
   const hidden: Federation["hidden"] = [];
   const hosts = [local, ...remotes];
   const cards: Card[] = [];
-  const projects: Board["projects"] = [];
+  type Listed = {
+    project: Board["projects"][number];
+    host: HostBoard;
+    hosts: Set<string>;
+  };
+  const listed: Listed[] = [];
+  const byName = new Map<string, Listed>();
   for (const host of hosts) {
     let count = 0;
     for (const card of host.board.cards) {
@@ -98,15 +107,33 @@ export function mergeBoards(
     for (const project of host.board.projects) {
       if (projectOwners.has(project.id)) continue;
       projectOwners.set(project.id, host.serverId);
-      projects.push(
-        host === local
-          ? project
-          : { ...project, name: `${project.name} · ${host.label}` },
-      );
+      // A host's own same-named projects stay apart; only other hosts merge into one.
+      const same = byName.get(project.name);
+      if (same && !same.hosts.has(host.serverId)) {
+        same.hosts.add(host.serverId);
+        projectAliases.set(project.id, same.project.id);
+        continue;
+      }
+      const entry = { project, host, hosts: new Set([host.serverId]) };
+      listed.push(entry);
+      if (!same) byName.set(project.name, entry);
+      projectAliases.set(project.id, project.id);
     }
   }
   if (!remotes.length)
-    return { board: local.board, owners, projectOwners, hidden };
+    return {
+      board: local.board,
+      owners,
+      projectOwners,
+      projectAliases,
+      hidden,
+    };
+  // Name the host only for a project no other host shares, unless it is local.
+  const projects = listed.map(({ project, host, hosts }) =>
+    host === local || hosts.size > 1
+      ? project
+      : { ...project, name: `${project.name} · ${host.label}` },
+  );
   const cardOrderByStage: CardOrderByStage = {};
   for (const id of groupIds) {
     const columns = hosts.map((host) =>
@@ -122,8 +149,21 @@ export function mergeBoards(
     board: { ...local.board, cards, projects, cardOrderByStage },
     owners,
     projectOwners,
+    projectAliases,
     hidden,
   };
+}
+
+/** Every host's project ID behind a listed project; an unknown ID matches only itself. */
+export function projectMembers(
+  aliases: ReadonlyMap<string, string>,
+  projectId: string,
+): string[] {
+  const listed = aliases.get(projectId) ?? projectId;
+  const members = [...aliases].flatMap(([id, target]) =>
+    target === listed ? [id] : [],
+  );
+  return members.length ? members : [projectId];
 }
 
 export type Routed = { serverId: string; mutation: Mutation };

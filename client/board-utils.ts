@@ -86,9 +86,10 @@ export function attentionReasons(card: Card): string[] {
   return reasons;
 }
 
+/** `projectId` is "all", "none", or a project; a merged project passes all its host IDs. */
 export function visibleCards(
   board: Board,
-  projectId: string,
+  projectId: string | readonly string[],
   search: string,
   attentionOnly: boolean,
   filters: Pick<
@@ -105,7 +106,9 @@ export function visibleCards(
       (projectId === "all" ||
         (projectId === "none"
           ? card.projectId === null
-          : card.projectId === projectId)) &&
+          : typeof projectId === "string"
+            ? card.projectId === projectId
+            : card.projectId !== null && projectId.includes(card.projectId))) &&
       (!attentionOnly || attentionReasons(card).length > 0) &&
       (filters.activity === "all" || card.activity === filters.activity) &&
       matchesRequest(card, filters.changeRequest) &&
