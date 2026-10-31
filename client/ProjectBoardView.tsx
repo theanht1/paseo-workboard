@@ -9,6 +9,7 @@ import { design, typography } from "./design";
 export function ProjectBoardView(
   props: BoardViewProps & {
     projects: Board["projects"];
+    projectAliases?: ReadonlyMap<string, string>;
     onCreateInProject?(projectId: string | null): void;
     collapsed: ReadonlySet<string>;
     onCollapsedChange(ids: string[]): void;

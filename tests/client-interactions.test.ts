@@ -5099,3 +5099,46 @@ it("M-11 merges same-named projects across hosts into one project filter", async
     expect.objectContaining({ serverId: "remote", projectId: "remote-p" }),
   );
 });
+
+it("M-12 merges project lanes across hosts and drafts a lane task on the project's host", () => {
+  twoHosts(
+    [{ ...card("one"), projectId: "host-p" }],
+    [{ ...card("far"), projectId: "remote-p" }],
+  );
+  runtime.query.data = {
+    ...runtime.query.data,
+    projects: [{ id: "host-p", name: "Repo", directory: "/r", isGit: true }],
+  };
+  const screen = host();
+  find(
+    screen.render(),
+    (e) => e.type === ToolbarSelect && e.props.id === "workboard-group-menu",
+  ).props.onSelect("project");
+  const routed = named(screen.render(), "ProjectBoardView");
+  const lanes = elements(mount(ProjectBoardView, routed.props).render()).filter(
+    (e) => e.type === BoardView,
+  );
+  expect(lanes.map((e) => e.props.cards.map((c: Card) => c.id))).toEqual([
+    ["one", "far"],
+  ]);
+  // The lane may start with the remote copy; the draft uses the listed project's host.
+  routed.props.onCreateInProject("remote-p");
+  expect(named(screen.render(), "TaskModal").props.form).toEqual(
+    expect.objectContaining({ projectId: "host-p", serverId: "host" }),
+  );
+});
+
+it("M-13 drafts a lane task for a remote-only project on its own host", () => {
+  twoHosts([], [{ ...card("far"), projectId: "remote-p" }]);
+  const screen = host();
+  find(
+    screen.render(),
+    (e) => e.type === ToolbarSelect && e.props.id === "workboard-group-menu",
+  ).props.onSelect("project");
+  named(screen.render(), "ProjectBoardView").props.onCreateInProject(
+    "remote-p",
+  );
+  expect(named(screen.render(), "TaskModal").props.form).toEqual(
+    expect.objectContaining({ projectId: "remote-p", serverId: "remote" }),
+  );
+});

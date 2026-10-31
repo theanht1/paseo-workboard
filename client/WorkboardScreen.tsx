@@ -1522,11 +1522,24 @@ function HostWorkboard(props: PluginSurfaceProps & { initialPage?: Page }) {
       )}
       <TaskView
         projects={board.projects}
+        projectAliases={federation.projectAliases}
         onCreateInProject={
           writesDisabled
             ? undefined
-            : (projectId: string | null) =>
-                setDraft({ title: "", description: "", projectId })
+            : (projectId: string | null) => {
+                // A lane may start with another host's copy; draft on the listed project's host.
+                const listed =
+                  projectId === null
+                    ? null
+                    : (federation.projectAliases.get(projectId) ?? projectId);
+                setDraft({
+                  title: "",
+                  description: "",
+                  projectId: listed,
+                  serverId:
+                    (listed && federation.projectOwners.get(listed)) || localId,
+                });
+              }
         }
         navigationActions={
           !narrowSurface && !projectBoard && viewPreferences.mode === "board"

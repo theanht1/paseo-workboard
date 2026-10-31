@@ -15,6 +15,7 @@ import {
   type HostBoard,
 } from "../client/federation";
 import { visibleCards } from "../client/board-utils";
+import { taskSections } from "../client/project-groups";
 
 function card(
   id: string,
@@ -203,6 +204,39 @@ describe("mergeBoards", () => {
         ),
       ),
     ).toEqual(["b2", "c1"]);
+  });
+
+  it("puts every host's copy of a merged project in one project lane", () => {
+    const repo = (id: string) => ({
+      id,
+      name: "Repo",
+      directory: `/${id}`,
+      isGit: true,
+    });
+    const local = host("a", [{ ...card("a1"), projectId: "a-p" }], {
+      projects: [repo("a-p")],
+    });
+    const remote = host("b", [{ ...card("b1"), projectId: "b-p" }], {
+      projects: [repo("b-p")],
+    });
+    const merged = mergeBoards(local, [remote]);
+    const input = {
+      cards: merged.board.cards,
+      fullCards: merged.board.cards,
+      groups: merged.board.settings.groups,
+      cardOrderByStage: merged.board.cardOrderByStage,
+      projects: merged.board.projects,
+      unassigned: "None",
+    };
+    const lanes = taskSections({
+      ...input,
+      projectAliases: merged.projectAliases,
+    });
+    expect(
+      lanes.map((lane) => [lane.title, ids(lane.cards), lane.total]),
+    ).toEqual([["Repo", ["a1", "b1"], 2]]);
+    // Without aliases each host's copy keeps its own lane.
+    expect(taskSections(input)).toHaveLength(2);
   });
 
   it("preserves every host's saved column order in the merged order", () => {

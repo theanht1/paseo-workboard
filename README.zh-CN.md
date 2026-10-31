@@ -101,7 +101,7 @@ npm run format:check
 - 部分标签与 workspace 操作通过 Paseo 内部桥接完成，复用宿主会话并校验响应。manifest 的最低版本不代表兼容所有后续版本，升级前请查看 [GitHub Releases](https://github.com/fxbing/paseo-workboard/releases) 中的升级说明。
 - 自动归档可能停止 Agent 与 terminal，并可能移除托管 worktree。缺少对话证据、子 Agent 清单不完整或状态不安全时会延期。归档页仅显示 Workboard 自动归档，默认显示已归档记录。“撤销归档”通过 Paseo 恢复已归档 workspace；已活跃时无需再次调用原生恢复。在原生界面恢复已完成的自动归档后，刷新会同步状态。两种方式都会暂停自动归档，直到后续更换分组；能否恢复取决于宿主保留的目录和分支。安全检查与恢复选项详见[归档指南](https://github.com/fxbing/paseo-workboard/blob/main/docs/zh-CN/user-guide.md#归档-workspace)。
 - 标签、归档状态和侧边栏置顶可在 Workboard 外变化。宿主未提供全部原子操作，结果不确定时需要人工核实，不会进行破坏性重试。
-- 多 host 看板与分组镜像在 Paseo 客户端中运行，只在连接了这些 host 的客户端打开时生效。它依赖 Paseo 为每个已连接 host 加载一份插件客户端并共享 JavaScript 上下文，这不是公开 SDK 约定；见[架构](docs/zh-CN/architecture.md#多-host)。
+- 多 host 看板与分组镜像在 Paseo 客户端中运行，只在连接了这些 host 的客户端打开时生效。它依赖 Paseo 为每个已连接 host 加载一份插件客户端并共享 JavaScript 上下文，这不是公开 SDK 约定；见[架构](https://github.com/fxbing/paseo-workboard/blob/main/docs/zh-CN/architecture.md#多-host)。
 - 支持目标为 Paseo Web 与 Electron 桌面界面，原生移动端不在支持范围内。自动化 UI 冒烟测试以 Chromium 为目标。Electron、长时间边缘自动滚动，以及拖动过程中的 `Escape` 或失焦仍待验证。这些交互均已实现，包括拖动取消。
 
 ## 许可证与致谢

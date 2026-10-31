@@ -20,18 +20,26 @@ export type TaskSection = {
   total: number;
 };
 
-/** Group by project identity, never its editable display name. Sorting leaves stored order intact. */
+/**
+ * Group by project identity, never its editable display name. Sorting leaves stored order intact.
+ * On a multi-host board, aliases put each host's copy of a merged project in one lane.
+ */
 export function taskSections(input: {
   cards: Card[];
   fullCards: Card[];
   groups: Group[];
   cardOrderByStage: CardOrderByStage;
   projects: Board["projects"];
+  projectAliases?: ReadonlyMap<string, string>;
   unassigned: string;
 }): TaskSection[] {
   const sections = new Map<string, TaskSection>();
+  const listed = (projectId: string) =>
+    input.projectAliases?.get(projectId) ?? projectId;
   const key = (card: Card) =>
-    card.projectId === null ? "project:none" : `project:id:${card.projectId}`;
+    card.projectId === null
+      ? "project:none"
+      : `project:id:${listed(card.projectId)}`;
   const projectNames = new Map(
     input.projects.map((project) => [project.id, project.name]),
   );
@@ -56,7 +64,7 @@ export function taskSections(input: {
         id,
         title:
           (card.projectId !== null
-            ? projectNames.get(card.projectId)
+            ? projectNames.get(listed(card.projectId))
             : undefined) ||
           card.projectName ||
           input.unassigned,
