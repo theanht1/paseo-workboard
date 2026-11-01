@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { z } from "zod";
 import {
   migrateData,
   InvalidStorageDataError,
@@ -17,6 +18,10 @@ import {
   orderedGroups,
 } from "../shared/model";
 import { mutationSchema } from "../shared/rpc";
+
+/** Paseo persists a migration only when the result is JSON, without undefined values. */
+const expectStorable = (data: unknown) =>
+  expect(() => z.json().parse(data)).not.toThrow();
 
 it("preserves schema 12 archives and does not infer a recovery intent or pause", () => {
   const task = newTask("task", "Task", "2026-09-01T00:00:00Z");
@@ -536,6 +541,7 @@ it("upgrades priority metadata without changing tasks, order, archive rules or p
   const migrated = migrateData(previous, 10);
   expect(migrated).toEqual({ ...previous, schemaVersion: DATA_SCHEMA_VERSION });
   expect(migrated.tasks[0].priority).toBeUndefined();
+  expectStorable(migrated);
   expect(migrateData(migrated, DATA_SCHEMA_VERSION)).toEqual(migrated);
 });
 
@@ -544,6 +550,7 @@ it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])(
   (version) => {
     const migrated = migrateData({ schemaVersion: version }, version);
     expect(migrated.schemaVersion).toBe(DATA_SCHEMA_VERSION);
+    expectStorable(migrated);
     expect(migrateData(migrated, DATA_SCHEMA_VERSION)).toEqual(migrated);
     expect(migrated.settings.priorityStyles).toBeUndefined();
   },
@@ -602,6 +609,7 @@ it.each([9, 10, 11])(
     expect(migrated.schemaVersion).toBe(13);
     expect(migrated.tasks[0].priority).toBe("p1");
     expect(migrated.tasks[0].mergedDrafts[0].priority).toBe("p3");
+    expectStorable(migrated);
     expect(migrated.settings.priorityStyles).toMatchObject({
       p0: { name: null, color: "red" },
       p1: { name: "Urgent", color: "violet" },
