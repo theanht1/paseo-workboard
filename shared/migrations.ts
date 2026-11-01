@@ -282,29 +282,29 @@ function migrateV11(values: unknown) {
     .object({ ...oldDataShape, schemaVersion: z.literal(11) })
     .parse(values);
   const levels = { high: "p1", normal: "p2", low: "p3" } as const;
-  const styles = previous.settings.priorityStyles;
+  // Paseo stores settings as JSON and rejects an undefined value, so absent keys stay absent.
+  const withPriority = <T extends { priority?: keyof typeof levels }>({
+    priority,
+    ...item
+  }: T) => (priority ? { ...item, priority: levels[priority] } : item);
+  const { priorityStyles: styles, ...settings } = previous.settings;
   return dataSchema.parse({
     ...previous,
     schemaVersion: DATA_SCHEMA_VERSION,
-    settings: {
-      ...previous.settings,
-      priorityStyles: styles
-        ? {
+    settings: styles
+      ? {
+          ...settings,
+          priorityStyles: {
             p0: DEFAULT_PRIORITY_STYLES.p0,
             p1: styles.high,
             p2: styles.normal,
             p3: styles.low,
-          }
-        : undefined,
-    },
+          },
+        }
+      : settings,
     tasks: previous.tasks.map((task) => ({
-      ...task,
-      priority: task.priority === undefined ? undefined : levels[task.priority],
-      mergedDrafts: task.mergedDrafts.map((draft) => ({
-        ...draft,
-        priority:
-          draft.priority === undefined ? undefined : levels[draft.priority],
-      })),
+      ...withPriority(task),
+      mergedDrafts: task.mergedDrafts.map(withPriority),
     })),
   });
 }
