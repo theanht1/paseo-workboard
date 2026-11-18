@@ -43,12 +43,13 @@ npm run format:check
 
 `npm run check` 会运行 TypeScript 和单元测试。开发时先运行最小相关测试，再按改动类型执行检查：
 
-| 改动                                  | 必需检查                                                                    |
-| ------------------------------------- | --------------------------------------------------------------------------- |
-| 代码                                  | 相关测试、`npm run check` 和 `npm run format:check`                         |
-| 纯文档                                | 格式、链接与源码一致性，无需运行单元测试                                    |
-| 包、依赖、manifest 或 README 打包契约 | 额外运行 `npm run check:package`                                            |
-| 宿主兼容桥接                          | 额外按[隔离集成指南](tests/integration/README.zh-CN.md)运行受支持宿主的测试 |
+| 改动                                     | 必需检查                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------- |
+| 代码                                     | 相关测试、`npm run check` 和 `npm run format:check`                         |
+| 纯文档                                   | 格式、链接与源码一致性，无需运行单元测试                                    |
+| 包、依赖、manifest 或 README 打包契约    | 额外运行 `npm run check:package`                                            |
+| 宿主兼容桥接                             | 额外按[隔离集成指南](tests/integration/README.zh-CN.md)运行受支持宿主的测试 |
+| paseo-tui 入口（`index.tui.ts`、`tui/`） | 额外运行 `npm run build:tui`，并在隔离环境中通过 paseo-tui 实际操作视图     |
 
 包检查验证待发布文件清单和 README 必需标题，不会执行发布。保留英文 README 的 `## Installation` 与 `## Limitations` 标题，Paseo Cafe 会用它们提取内容。只在 PR 描述或该 PR 的 CI 运行结果中报告实际执行过的检查；验证日志、带日期的测试记录和问题排查记录留在 issue 与 PR 讨论中，不进入仓库。
 

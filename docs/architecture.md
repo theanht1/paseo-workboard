@@ -17,6 +17,7 @@ Workboard is a trusted Paseo plugin with separate client and server entries. The
 | `server/conversations.ts`, `server/git-safety.ts` | Conversation timestamps and pre-archive checks                                   |
 | `server/store.ts`, `shared/migrations.ts`         | Revision-checked persistence and data migration                                  |
 | `shared/model.ts`, `shared/rpc.ts`                | Zod models, settings and RPC contracts                                           |
+| `index.tui.ts`, `tui/`                            | paseo-tui entry: terminal board model, keys, polling store and view              |
 
 ## Identity and state
 
@@ -101,6 +102,12 @@ The surface polls every other registered host's snapshot. `client/federation.ts`
 
 `settings.groupSyncMaster` stores the master's `serverId`; the master stores its own. It defaults to null, so it adds no schema version. Only the `group-sync` action changes it. A follower refuses group and group-order changes through `settings` and `reorder-groups`. The follower's own client evaluation compares itself with the master every 30 seconds, after a registry change while waiting, and when a surface requests it after a group mutation. If the master still names itself and the layouts differ, it calls `sync-groups` on its own host only. That action requires the host to follow the named master, copies groups and order, clears defaults that no longer resolve, and reuses `saveSettings` validation without the local reorder and default-in-use checks, so groups used by tasks and type changes under drafts are still refused. When the mirror adds a Done or Canceled label and that kind's archive rule is on, it turns that rule off and sets `archivePausedByGroupSync` (default false, cleared when a rule is turned back on), since no one on the follower saw the due-task preview. Concurrent clients converge because the mirror is idempotent.
 
+## Terminal client
+
+The paseo-tui entry is another client of `workboard.snapshot` and `workboard.mutate`; the server is unchanged. paseo-tui activates it once per connected host whose daemon runs Workboard, and each activation's `rpc` reaches only that daemon, so each view shows one host and there is no federation. paseo-tui loads a locally built `dist/tui.js` and supplies React, OpenTUI and its plugin API to it: `scripts/build-tui.mjs` keeps those external and bundles Zod and the shared modules. `tui/host-api.d.ts` declares only the parts of plugin API version 1 the entry uses; paseo-tui refuses a module that declares another version, so the declarations change only with that version.
+
+`tui/board-store.ts` validates every input and reply with the shared RPC schemas, so a checkout from another Workboard version fails visibly instead of misreading the board. It keeps the board with the highest revision, allows one write at a time, refuses writes while the board is disconnected and never retries a refused or failed write. Mutations carry the same expected labels, group and `updatedAt` as the Paseo client. It settles every promise and timer itself, because paseo-tui does not isolate errors from a plugin's own timers. Polling runs every 2 seconds while the view has the keyboard and every 15 seconds while it is only mounted. It stops when no view is mounted or paseo-tui disposes the activation. Selection, the attention filter and the draft editor live in that store; the view only renders it.
+
 ## Compatibility boundary
 
 The public SDK does not expose every required operation. The compatibility module uses the plugin's existing authenticated IPC session for labels, pins, settings writes, bootstrap and selected history/record queries. It does not create a second login, replace credentials or modify Paseo.
@@ -109,7 +116,7 @@ The manifest owns the minimum Paseo version. The bridge validates response shape
 
 The runtime uses the fixed plugin ID `paseo-workboard`; install it without an `--id` override.
 
-Client imports use Paseo-provided React, React Native, TanStack Query, Zod and plugin modules. The server uses the provided SDK/Zod and Node built-ins. The published package contains TypeScript sources; Paseo prepares them, so there is no build step or runtime npm dependency installation.
+Client imports use Paseo-provided React, React Native, TanStack Query, Zod and plugin modules. The server uses the provided SDK/Zod and Node built-ins. The published package contains TypeScript sources; Paseo prepares them, so there is no build step or runtime npm dependency installation. The paseo-tui entry is not packed; terminal users build it from a checkout (see [Terminal client](#terminal-client)).
 
 ## Client preferences
 

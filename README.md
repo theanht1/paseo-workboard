@@ -19,6 +19,7 @@ Workboard brings active workspaces into one board, with one task per workspace. 
 - **Optional automatic archiving.** Configure Done and Canceled rules independently to archive eligible workspaces after their respective delays from their last verified conversation, with activity and Git safety checks. Disabled by default.
 - **Project lanes and priorities.** Group the board by project, expand or collapse all visible project lanes, set task priorities, and switch between priority sorting and the saved default order. Customize priority names and colors in Settings. Priorities are P0–P3, with P0 highest and P2 as the unlabeled default. Native P0/P1/P2/P3 labels sync both ways and remain exclusive.
 - **Multiple hosts on one board.** Combine every connected host running Workboard, writing each change to the host that owns the task. Optionally mirror one master host's groups to the others.
+- **A terminal board.** In [paseo-tui](https://github.com/theanht1/paseo-tui), list the same tasks by group, then move, prioritize and create them and open their workspaces from the keyboard.
 
 The interface follows Paseo's desktop/Web language and theme, with English and Chinese text and dates.
 
@@ -71,6 +72,25 @@ This tracks the default branch, which may include changes newer than the latest 
 
 The [user guide](https://github.com/fxbing/paseo-workboard/blob/main/docs/user-guide.md) covers filters, ordering, undo, draft recovery, and settings.
 
+## Terminal client
+
+[paseo-tui](https://github.com/theanht1/paseo-tui) can show Workboard as a terminal view. It needs a paseo-tui release that implements TUI plugin API version 1, and Workboard installed and running on each host as described above. The terminal entry is not part of the installed package; build it from a checkout of the same version as the installed plugin:
+
+```sh
+git clone https://github.com/fxbing/paseo-workboard.git
+cd paseo-workboard
+npm ci
+npm run build:tui
+```
+
+List the built module in the paseo-tui config file, then run **Open Workboard** from its Command Center (`Ctrl-K`). Rebuild after updating the checkout. Like any paseo-tui plugin, it runs unsandboxed in the paseo-tui process.
+
+```json
+{ "plugins": ["/path/to/paseo-workboard/dist/tui.js"] }
+```
+
+The [user guide](https://github.com/fxbing/paseo-workboard/blob/main/docs/user-guide.md#use-the-terminal-board) lists its keys and rules.
+
 ## Documentation
 
 | Guide                                                                                    | Contents                                           |
@@ -103,6 +123,7 @@ Use the [isolated integration fixture](https://github.com/fxbing/paseo-workboard
 - Automatic archiving can stop Agents and terminals and may remove a managed worktree. Missing conversation evidence, incomplete child inventories, or unsafe state postpones it. The Archive page shows only Workboard automatic archives and defaults to completed records. Undo archive asks Paseo to restore an archived workspace; an already active workspace needs no native restore. Native restoration of a completed automatic archive syncs on refresh. Both paths pause automatic archiving until a subsequent group change. Recovery depends on the host’s retained directories and branches. See the [archive guide](https://github.com/fxbing/paseo-workboard/blob/main/docs/user-guide.md#archive-workspaces) for the safety checks and recovery options.
 - Labels, archive state, and sidebar pins can change outside Workboard. The host does not expose every atomic operation; uncertain outcomes require manual review instead of destructive retries.
 - The multi-host board and group mirroring run in the Paseo client, so they work only while a client with those hosts connected is open. They rely on Paseo loading one plugin client per connected host in a shared JavaScript context, which is not a public SDK contract; see [architecture](https://github.com/fxbing/paseo-workboard/blob/main/docs/architecture.md#multiple-hosts).
+- The paseo-tui view lists tasks, moves them between groups, sets priorities, creates drafts and opens a task's workspace. Starting work, editing, archiving, ordering, the board and project layouts, filters other than attention, and Settings stay in the Paseo app. Each view shows one host. A checkout built from a different Workboard version than the daemon runs can fail to read the board.
 - The supported clients are the Paseo Web and Electron desktop UI; native mobile is not a supported target. The automated UI smoke suite targets Chromium. Electron, long-duration edge autoscroll, and `Escape` or blur during an active drag remain unverified. Those interactions are implemented, including drag cancellation.
 
 ## License and acknowledgements

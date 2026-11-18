@@ -17,6 +17,7 @@
     "client/**/*.ts",
     "client/**/*.tsx",
     "server/**/*.ts",
+    "tui/**/*.ts",
     "shared/**/*.ts",
     "tests/**/*.ts",
     "tests/**/*.tsx"

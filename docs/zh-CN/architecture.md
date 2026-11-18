@@ -17,6 +17,7 @@ Workboard 是受信任的 Paseo 插件，客户端和服务端使用独立入口
 | `server/conversations.ts`、`server/git-safety.ts` | 对话时间与归档前检查                             |
 | `server/store.ts`、`shared/migrations.ts`         | revision 校验保存与数据迁移                      |
 | `shared/model.ts`、`shared/rpc.ts`                | Zod 模型、设置与 RPC 契约                        |
+| `index.tui.ts`、`tui/`                            | paseo-tui 入口：终端看板模型、按键、轮询与视图   |
 
 ## 身份与状态
 
@@ -103,6 +104,12 @@ Workboard 使用真实时钟。隔离集成套件可以请求仅用于测试的�
 
 `settings.groupSyncMaster` 保存分组主机的 `serverId`，分组主机保存自己的 ID。默认值为 null，因此不增加 schema 版本。只有 `group-sync` 操作会修改它。跟随方通过 `settings` 和 `reorder-groups` 修改分组或分组顺序会被拒绝。跟随方自己的客户端执行每 30 秒、等待期间注册表变化后，以及界面在分组变更后请求时，与分组主机比较。若分组主机仍指向自己且布局不同，它只对自己的 host 调用 `sync-groups`。该操作要求本 host 正在跟随所指定的分组主机，复制分组及顺序，清除不再有效的默认分组，并复用 `saveSettings` 校验（跳过本地排序与默认分组占用检查），因此仍会拒绝删除任务正在使用的分组，以及改变仍有草稿的分组类型。若镜像新增了已完成或已废弃标签且对应的自动归档规则开启，会关闭该规则并设置 `archivePausedByGroupSync`（默认 false，重新开启规则时清除），因为跟随方无人看到到期任务预览。镜像是幂等的，多个客户端并发也会收敛。
 
+## 终端客户端
+
+paseo-tui 入口是 `workboard.snapshot` 与 `workboard.mutate` 的另一个客户端，服务端不变。paseo-tui 为每个运行 Workboard 的已连接 host 激活一次该入口，每次激活的 `rpc` 只能访问对应的 daemon，因此每个视图只显示一台 host，不做跨 host 合并。paseo-tui 加载本地构建的 `dist/tui.js`，并为其提供 React、OpenTUI 和插件 API：`scripts/build-tui.mjs` 将它们保留为外部依赖，并打包 Zod 与共享模块。`tui/host-api.d.ts` 只声明入口用到的插件 API 第 1 版部分；paseo-tui 会拒绝声明其它版本的模块，因此这些声明只随该版本变化。
+
+`tui/board-store.ts` 用共享 RPC schema 校验每个输入和响应，因此用其它 Workboard 版本的源码构建时会明确报错，而不会误读看板。它保留 revision 最高的看板，一次只允许一个写入，看板断开时拒绝写入，且从不重试被拒绝或失败的写入。修改携带与 Paseo 客户端相同的预期标签、分组和 `updatedAt`。它自行处理所有 promise 和定时器，因为 paseo-tui 不隔离插件自身定时器中的错误。视图接收键盘时每 2 秒轮询一次，仅挂载时每 15 秒轮询一次；没有挂载的视图或 paseo-tui 释放该激活后停止。选中项、待关注筛选和草稿编辑状态都保存在该 store 中，视图只负责渲染。
+
 ## 兼容边界
 
 公开 SDK 尚未覆盖所有所需操作。兼容模块复用插件现有的已认证 IPC 会话，完成标签、置顶、settings 写入、启动初始化及部分历史/记录查询；不另建登录、不替换凭证、不修改 Paseo。
@@ -111,7 +118,7 @@ manifest 定义 Paseo 最低版本。桥接校验响应结构，但不固定宿�
 
 运行时使用固定插件 ID `paseo-workboard`；安装时不要通过 `--id` 覆盖。
 
-客户端使用 Paseo 提供的 React、React Native、TanStack Query、Zod 和插件模块；服务端使用宿主 SDK/Zod 与 Node 内置模块。发布包包含 TypeScript 源码，由 Paseo 处理，因此不需要构建步骤或安装运行时 npm 依赖。
+客户端使用 Paseo 提供的 React、React Native、TanStack Query、Zod 和插件模块；服务端使用宿主 SDK/Zod 与 Node 内置模块。发布包包含 TypeScript 源码，由 Paseo 处理，因此不需要构建步骤或安装运行时 npm 依赖。paseo-tui 入口不进入发布包，终端用户从源码检出构建（见[终端客户端](#终端客户端)）。
 
 ## 客户端偏好
 

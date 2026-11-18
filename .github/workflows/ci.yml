@@ -35,6 +35,8 @@ jobs:
         if: runner.os == 'Linux'
       - run: npm run check:package
         if: runner.os == 'Linux'
+      - run: npm run build:tui
+        if: runner.os == 'Linux'
       - run: npm pack --ignore-scripts
         if: runner.os == 'Linux'
       - uses: actions/upload-artifact@v7

@@ -17,7 +17,7 @@
 
 Paseo 加载 TypeScript 客户端/服务端入口及相对模块，所有外部运行时依赖由 Paseo 或 Node 提供。开发依赖保留在 `devDependencies`，无需 manifest 构建命令或编译后的分发目录。参见 [Paseo 发布指南](https://paseo.sh/docs/plugins/publishing)。
 
-打包内容包含 manifest、入口、`client/`、`server/`、`shared/`、中英文 README、两份 `OVERVIEW`、`images/`（图标、截图和 GIF）以及 MIT 许可证。测试、开发脚本、daemon 数据、日志、凭证与 `node_modules` 不进入发布包。
+打包内容包含 manifest、入口、`client/`、`server/`、`shared/`、中英文 README、两份 `OVERVIEW`、`images/`（图标、截图和 GIF）以及 MIT 许可证。测试、开发脚本、daemon 数据、日志、凭证与 `node_modules` 不进入发布包。paseo-tui 入口（`index.tui.ts`、`tui/`）同样不进入发布包：Paseo 不加载它，终端用户在源码检出中运行 `npm run build:tui` 构建 `dist/tui.js`。
 
 `npm run check:package` 检查包身份/版本、manifest 最低版本、Cafe 提取所需 README 标题、完整文件清单、README 相对链接目标、引用素材的文件签名和图标尺寸。CI 执行这些检查并生成可下载的 tarball 供审查，CI 中不存在任何发布动作。
 

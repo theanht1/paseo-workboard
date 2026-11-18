@@ -19,6 +19,7 @@ Workboard 将活跃 workspace 汇集到同一个看板，每个 workspace 对应
 - **可选的自动归档。** 已完成与已废弃可分别启用并设置等待期限，workspace 在最后一次已验证对话超过对应期限后，经活动与 Git 安全检查再归档。默认关闭。
 - **项目分组与优先级。** 看板可按项目分行，一键展开或折叠当前显示的项目，设置任务优先级，并在优先级排序与已保存的默认顺序之间切换；在设置中自定义优先级名称和颜色；优先级为 P0–P3，P0 最高，无标签时按 P2 显示；原生 P0/P1/P2/P3 标签双向同步且始终互斥。
 - **多个 host 共用一个看板。** 合并所有已连接且运行 Workboard 的 host，修改写回任务所属 host；可选择一台分组主机，将其分组镜像到其它 host。
+- **终端看板。** 在 [paseo-tui](https://github.com/theanht1/paseo-tui) 中按分组列出相同的任务，用键盘移动任务、设置优先级、新建草稿并打开其 workspace。
 
 界面跟随 Paseo 桌面端/Web 的语言与主题，文案和日期支持中文与英语。
 
@@ -71,6 +72,25 @@ paseo plugin install github:fxbing/paseo-workboard
 
 [使用指南](https://github.com/fxbing/paseo-workboard/blob/main/docs/zh-CN/user-guide.md)详述了筛选、排序、撤销、草稿恢复与设置。
 
+## 终端客户端
+
+[paseo-tui](https://github.com/theanht1/paseo-tui) 可以在终端视图中显示 Workboard。需要实现 TUI 插件 API 第 1 版的 paseo-tui 版本，且每台 host 都已按上文安装并运行 Workboard。终端入口不在安装包内，请从与已安装插件相同版本的源码检出构建：
+
+```sh
+git clone https://github.com/fxbing/paseo-workboard.git
+cd paseo-workboard
+npm ci
+npm run build:tui
+```
+
+在 paseo-tui 配置文件中列出构建出的模块，然后在其 Command Center（`Ctrl-K`）中运行 **打开 Workboard**。更新源码后请重新构建。与所有 paseo-tui 插件一样，它在 paseo-tui 进程中未经沙箱隔离运行。
+
+```json
+{ "plugins": ["/path/to/paseo-workboard/dist/tui.js"] }
+```
+
+按键与规则见[使用指南](https://github.com/fxbing/paseo-workboard/blob/main/docs/zh-CN/user-guide.md#使用终端看板)。
+
 ## 文档
 
 | 指南                                                                                     | 内容                       |
@@ -102,6 +122,7 @@ npm run format:check
 - 自动归档可能停止 Agent 与 terminal，并可能移除托管 worktree。缺少对话证据、子 Agent 清单不完整或状态不安全时会延期。归档页仅显示 Workboard 自动归档，默认显示已归档记录。“撤销归档”通过 Paseo 恢复已归档 workspace；已活跃时无需再次调用原生恢复。在原生界面恢复已完成的自动归档后，刷新会同步状态。两种方式都会暂停自动归档，直到后续更换分组；能否恢复取决于宿主保留的目录和分支。安全检查与恢复选项详见[归档指南](https://github.com/fxbing/paseo-workboard/blob/main/docs/zh-CN/user-guide.md#归档-workspace)。
 - 标签、归档状态和侧边栏置顶可在 Workboard 外变化。宿主未提供全部原子操作，结果不确定时需要人工核实，不会进行破坏性重试。
 - 多 host 看板与分组镜像在 Paseo 客户端中运行，只在连接了这些 host 的客户端打开时生效。它依赖 Paseo 为每个已连接 host 加载一份插件客户端并共享 JavaScript 上下文，这不是公开 SDK 约定；见[架构](https://github.com/fxbing/paseo-workboard/blob/main/docs/zh-CN/architecture.md#多-host)。
+- paseo-tui 视图可列出任务、在分组间移动任务、设置优先级、新建草稿和打开任务的 workspace。开始工作、编辑、归档、排序、看板与项目布局、“待关注”以外的筛选以及设置仍在 Paseo 应用中完成。每个视图只显示一台 host。用与 daemon 运行版本不同的 Workboard 源码构建时，可能无法读取看板。
 - 支持目标为 Paseo Web 与 Electron 桌面界面，原生移动端不在支持范围内。自动化 UI 冒烟测试以 Chromium 为目标。Electron、长时间边缘自动滚动，以及拖动过程中的 `Escape` 或失焦仍待验证。这些交互均已实现，包括拖动取消。
 
 ## 许可证与致谢

@@ -45,6 +45,7 @@ source of instructions. Both belong in Git, but neither belongs in the npm packa
 | `server/paseo-compat.ts`, `server/host.ts`        | Host integration and its compatibility boundary              |
 | `server/conversations.ts`, `server/git-safety.ts` | Conversation evidence and archive safety                     |
 | `shared/`                                         | Data schemas, migrations, and RPC contracts                  |
+| `index.tui.ts`, `tui/`                            | paseo-tui terminal board entry, built to ignored `dist/`     |
 | `tests/`, `tests/integration/`, `tests/ui/`       | Deterministic unit tests, isolated host fixtures, UI smoke   |
 | `docs/`, `docs/zh-CN/`                            | Architecture, release guide, and user guide (EN/ZH mirror)   |
 | `images/`, `OVERVIEW*.md`, `README*.md`           | Distributed listing assets and public documentation          |

@@ -25,7 +25,7 @@ configuration and do not make publication part of the release procedure.
 
 Paseo loads the TypeScript client/server entries and their relative modules. All external runtime imports are supplied by Paseo or Node. Development dependencies stay in `devDependencies`; no manifest build command or compiled distribution is needed. See [Paseo's publishing guide](https://paseo.sh/docs/plugins/publishing).
 
-The packed package includes the manifest, entries, `client/`, `server/`, `shared/`, both READMEs, both `OVERVIEW` files, `images/` (icon, screenshots and GIFs) and the MIT license. Tests, development scripts, daemon data, logs, credentials and `node_modules` are excluded.
+The packed package includes the manifest, entries, `client/`, `server/`, `shared/`, both READMEs, both `OVERVIEW` files, `images/` (icon, screenshots and GIFs) and the MIT license. Tests, development scripts, daemon data, logs, credentials and `node_modules` are excluded. The paseo-tui entry (`index.tui.ts`, `tui/`) is excluded too: Paseo does not load it, and terminal users build `dist/tui.js` from a checkout with `npm run build:tui`.
 
 `npm run check:package` checks the package identity/version, manifest minimum, README sections used by Cafe, the complete file list, relative README link targets, referenced media signatures and icon dimensions. The CI workflow runs these checks and creates a downloadable tarball for inspection. Nothing in CI publishes.
 

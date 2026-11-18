@@ -32,12 +32,7 @@ import {
   type Settings,
   type Stage,
 } from "../shared/model";
-import {
-  CANCEL_BINDING_BUSY_ERROR_CODE,
-  mutateRpc,
-  snapshotRpc,
-  type Mutation,
-} from "../shared/rpc";
+import { mutateRpc, snapshotRpc, type Mutation } from "../shared/rpc";
 import {
   boardNow,
   DEFAULT_COLUMN_WIDTH,
@@ -48,6 +43,7 @@ import {
   withOptimisticStages,
 } from "./board-utils";
 import { groupTitle, stageTitle, strings } from "./strings";
+import { mutationErrorText } from "./mutation-errors";
 import { GroupEditor, GroupSettings, newGroup } from "./GroupSettings";
 import { PrioritySettings } from "./PrioritySettings";
 import { BoardView } from "./BoardView";
@@ -4120,23 +4116,3 @@ const styles = StyleSheet.create({
   },
   hintText: { fontSize: 13, lineHeight: 18 },
 });
-
-export function mutationErrorText(
-  error: unknown,
-  t: ReturnType<typeof strings>,
-): string {
-  if (!(error instanceof Error)) return t.confirmationFailed;
-  const messages: Record<string, string> = {
-    ...t.issues,
-    ...t.mutationErrors,
-    ...t.bootErrors,
-    [CANCEL_BINDING_BUSY_ERROR_CODE]: t.cancelBindingBusy,
-  };
-  const message = error.message.replace(
-    /^Request failed: (.*) requestType=plugin\.rpc\.invoke\.request code=handler_error$/,
-    "$1",
-  );
-  return Object.hasOwn(messages, message)
-    ? messages[message]
-    : t.confirmationFailed;
-}

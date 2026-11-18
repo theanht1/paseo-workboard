@@ -111,6 +111,29 @@ In **Settings → Hosts**, **Group master** chooses one host whose groups and gr
 
 A follower refuses a mirror that would delete a group still used by its tasks, or change the type of a group that still holds its drafts, exactly as a local edit would. The Hosts list then shows the reason; move those tasks on that host and the next check succeeds. It also shows when the master is offline, no longer claims the role, or when a host is offline or runs no compatible Workboard. Hosts that were offline keep their earlier choice until you set the master again.
 
+## Use the terminal board
+
+The [README](../README.md#terminal-client) explains how to build the paseo-tui entry and add it to paseo-tui. Each connected host running Workboard gets its own **Workboard** view, which opens as a tab in a workspace on that host. Select the tab and press `i` to give it the keyboard; `Ctrl-]` returns to paseo-tui's shortcuts. The view refreshes every 2 seconds while it has the keyboard and every 15 seconds otherwise.
+
+Every group appears in the configured order with its task count, after a Label conflict section when one is needed. Each row shows the priority, title, project, then Draft or the Agent activity with its PR/MR state and CI result, and a ⚠ count of attention reasons. The line below the list names the selected task's reasons, or else the first line of its description.
+
+| Key                   | Action                                                    |
+| --------------------- | --------------------------------------------------------- |
+| `j`/`k`, `↓`/`↑`      | Select the next or previous task                          |
+| `g`/`G`, `Home`/`End` | Select the first or last task                             |
+| `]`/`[`               | Jump to the next or previous group that has tasks         |
+| `J`/`K`               | Move the task to the next or previous group               |
+| `0`–`3`               | Set priority P0–P3                                        |
+| `n`                   | Type a new draft title; `Enter` creates it, `Esc` cancels |
+| `Enter`, `o`          | Open the task's workspace                                 |
+| `a`                   | Show only tasks that need attention                       |
+| `r`                   | Refresh now                                               |
+| `?`                   | Show all keys                                             |
+
+Moves and priorities send the same expected labels and group as the board, so a task that changed meanwhile is refused instead of overwritten. A draft cannot enter a group that needs a workspace, a task still being linked to a workspace cannot move, and a label conflict is resolved in the Paseo app. A new draft joins the selected task's To do group, or else the default draft group, without a project. One change runs at a time, and changes are refused while the board data is stale.
+
+The paseo-tui Command Center also offers **Open Workboard** and **New Workboard draft**; bind them in paseo-tui's `keys` as `plugin.paseo-workboard.open` and `plugin.paseo-workboard.new-draft`. Text follows the terminal locale (`LC_ALL`, `LC_MESSAGES` or `LANG`): Chinese for a `zh` locale, otherwise English.
+
 ## Archive workspaces
 
 Automatic archive is off by default. Open **Settings → Automatic archive**:

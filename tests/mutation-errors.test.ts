@@ -25,7 +25,7 @@ vi.mock("@getpaseo/plugin/client/ui", () =>
     ].map((key) => [key, () => null]),
   ),
 );
-import { mutationErrorText } from "../client/WorkboardScreen";
+import { mutationErrorText } from "../client/mutation-errors";
 
 // Enumerate messages in the real throw expressions, including ternary fallbacks.
 const codes = new Set<string>([CANCEL_BINDING_BUSY_ERROR_CODE]);

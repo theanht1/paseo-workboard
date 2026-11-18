@@ -75,6 +75,7 @@ test while iterating, then choose the checks required by the change:
 | Documentation only                                          | Formatting, links, and consistency with the source; no unit suite required                         |
 | Package, dependencies, manifest, or README package contract | Also run `npm run check:package`                                                                   |
 | Host compatibility bridge                                   | Also run the supported-host tests in the [isolated integration guide](tests/integration/README.md) |
+| paseo-tui entry (`index.tui.ts`, `tui/`)                    | Also run `npm run build:tui` and exercise the view in paseo-tui against an isolated home           |
 
 The package check validates the publishable file list and required README
 headings without publishing anything. Keep the English `## Installation` and
